@@ -1,0 +1,399 @@
+// Types mirrored from the backend's Pydantic schemas (trace2pr/api/schemas/*.py).
+// Keep these in sync with the backend — they are the single source of truth
+// for what every `src/api/*` function returns.
+
+// ---- common.py ----
+
+export type AlertSource = 'datadog' | 'cloudwatch' | 'sentry' | 'pagerduty' | 'grafana' | 'generic';
+export type Severity = 'critical' | 'high' | 'medium' | 'low';
+export type AlertStatus = 'new' | 'acknowledged' | 'processing' | 'resolved' | 'dismissed';
+export type IncidentStatus = 'open' | 'analyzing' | 'fixing' | 'pr_created' | 'resolved' | 'escalated';
+export type FixStatus =
+  | 'queued'
+  | 'sandbox_creating'
+  | 'cloning'
+  | 'analyzing'
+  | 'fixing'
+  | 'testing'
+  | 'pr_creating'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+export type PRStatus = 'open' | 'merged' | 'closed' | 'changes_requested';
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+// ---- alerts.py ----
+
+export interface AlertDetail {
+  id: string;
+  title: string;
+  description: string | null;
+  source: AlertSource;
+  severity: Severity;
+  service: string;
+  raw_payload: Record<string, unknown>;
+  status: AlertStatus;
+  created_at: string;
+  updated_at: string;
+  incident_id: string | null;
+}
+
+export type AlertListResponse = PaginatedResponse<AlertDetail>;
+
+export interface AlertStats {
+  total_alerts: number;
+  by_severity: Record<string, number>;
+  by_status: Record<string, number>;
+}
+
+export interface AlertListParams {
+  source?: AlertSource;
+  severity?: Severity;
+  status?: AlertStatus;
+  service?: string;
+  since?: string;
+  page?: number;
+  per_page?: number;
+}
+
+// ---- incidents.py ----
+
+export interface IncidentDetail {
+  id: string;
+  title: string;
+  description: string;
+  severity: Severity;
+  service: string;
+  status: IncidentStatus;
+  created_at: string;
+  updated_at: string;
+  alert_ids: string[];
+  report_id: string | null;
+  fix_job_id: string | null;
+  pr_id: string | null;
+}
+
+export interface CreateIncidentRequest {
+  title: string;
+  description: string;
+  severity: Severity;
+  service: string;
+  alert_ids?: string[];
+}
+
+export interface UpdateIncidentRequest {
+  status?: IncidentStatus;
+  severity?: Severity;
+}
+
+export interface TimelineEvent {
+  id: string;
+  incident_id: string;
+  event_type: string;
+  message: string;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface TimelineResponse {
+  events: TimelineEvent[];
+}
+
+// ---- analysis.py ----
+
+export interface SuspectedFile {
+  path: string;
+  reason: string;
+  confidence_score: number;
+}
+
+export interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+  service: string;
+}
+
+export interface CommitInfo {
+  sha: string;
+  author: string;
+  message: string;
+  date: string;
+}
+
+export interface Evidence {
+  logs: LogEntry[];
+  commits: CommitInfo[];
+  traces: Record<string, unknown>[];
+}
+
+export interface DiagnosticReport {
+  id: string;
+  incident_id: string;
+  summary: string;
+  root_cause_hypothesis: string;
+  suspected_files: SuspectedFile[];
+  evidence: Evidence;
+  created_at: string;
+}
+
+export interface AnalysisJob {
+  id: string;
+  incident_id: string;
+  status: string;
+  created_at: string;
+  report: DiagnosticReport | null;
+}
+
+// ---- fixer.py ----
+
+export interface FileDiff {
+  file_path: string;
+  diff: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface DiffResponse {
+  files: FileDiff[];
+  total_additions: number;
+  total_deletions: number;
+}
+
+export interface TestFailure {
+  test_name: string;
+  file_path: string;
+  error_message: string;
+}
+
+export interface TestResults {
+  passed: number;
+  failed: number;
+  skipped: number;
+  failures: TestFailure[];
+}
+
+export interface FixAttempt {
+  id: string;
+  job_id: string;
+  attempt_number: number;
+  status: string;
+  created_at: string;
+  diff: DiffResponse | null;
+  tests: TestResults | null;
+}
+
+export interface FixJobDetail {
+  id: string;
+  incident_id: string;
+  status: FixStatus;
+  created_at: string;
+  updated_at: string;
+  attempts: FixAttempt[];
+}
+
+export interface TranscriptTurn {
+  role: string;
+  content: string;
+  timestamp: string;
+  tool_calls: Record<string, unknown>[] | null;
+}
+
+export interface Transcript {
+  job_id: string;
+  turns: TranscriptTurn[];
+}
+
+// ---- sandbox.py ----
+
+export interface SandboxTemplate {
+  id: string;
+  name: string;
+  description: string;
+  base_image: string;
+}
+
+export interface SandboxInstance {
+  id: string;
+  template_id: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface ResourceUsage {
+  cpu_percent: number;
+  memory_mb: number;
+  disk_mb: number;
+}
+
+export interface CreateSandboxRequest {
+  template_id: string;
+  timeout_seconds?: number;
+}
+
+export interface ExecRequest {
+  command: string;
+  cwd?: string;
+  timeout?: number;
+}
+
+export interface ExecResult {
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+}
+
+// ---- prs.py ----
+
+export interface CICheck {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  url: string;
+}
+
+export interface CIStatus {
+  state: string;
+  checks: CICheck[];
+}
+
+export interface PRDetail {
+  id: string;
+  provider_pr_id: string;
+  incident_id: string;
+  title: string;
+  url: string;
+  status: PRStatus;
+  created_at: string;
+  updated_at: string;
+  ci_status: CIStatus | null;
+}
+
+export interface PRStats {
+  total_prs: number;
+  merged_prs: number;
+  average_merge_time_minutes: number;
+}
+
+// ---- knowledge.py ----
+
+export interface PastIncident {
+  id: string;
+  title: string;
+  resolution_summary: string;
+  created_at: string;
+  similarity_score: number | null;
+}
+
+export interface PastFix {
+  id: string;
+  description: string;
+  diff_summary: string;
+  created_at: string;
+  similarity_score: number | null;
+}
+
+export interface SearchResults {
+  incidents: PastIncident[];
+  fixes: PastFix[];
+}
+
+export interface KBStats {
+  total_incidents_indexed: number;
+  total_fixes_indexed: number;
+  last_updated: string;
+}
+
+// ---- integrations.py ----
+
+export type IntegrationCategory = 'observability' | 'incident' | 'vcs' | 'cloud';
+
+export interface Integration {
+  id: string;
+  user_id: string;
+  service: string;
+  category: string;
+  status: string;
+  config: Record<string, unknown>;
+  composio_connection_id?: string | null;
+  composio_entity_id?: string | null;
+  verified_at?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntegrationCatalogItem {
+  id: string;
+  name: string;
+  category: IntegrationCategory;
+  description: string;
+  logo_url?: string | null;
+  oauth_supported: boolean;
+  required_fields: string[];
+}
+
+export interface ConnectResponse {
+  success: boolean;
+  redirect_url?: string;
+  connection_id?: string;
+  entity_id?: string;
+  error?: string;
+}
+
+export interface StatusResponse {
+  connected: boolean;
+  connection_id?: string;
+  status?: string;
+  auth_config?: Record<string, unknown>;
+  error?: string;
+}
+
+// ---- settings.py ----
+
+export interface SettingsResponse {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  theme: 'system' | 'light' | 'dark';
+  notifications: Record<string, boolean>;
+}
+
+// ---- health.py ----
+
+export interface HealthCheckResult {
+  status: 'ok' | 'degraded' | 'error' | 'not_configured';
+  details: string;
+}
+
+export interface HealthResponse {
+  status: 'ok' | 'degraded';
+  supabase: HealthCheckResult;
+  redis: HealthCheckResult;
+  e2b: HealthCheckResult;
+  composio: HealthCheckResult;
+}
+
+// ---- webhooks.py ----
+
+export interface WebhookLog {
+  id: string;
+  user_id: string | null;
+  integration_id: string | null;
+  source: string;
+  event_type: string | null;
+  payload: Record<string, unknown>;
+  headers: Record<string, unknown>;
+  processed: boolean;
+  error: string | null;
+  created_at: string;
+}
