@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, CheckCircle2, Clock, GitPullRequest } from 'lucide-react';
 import { MetricCard } from '../components/dashboard/MetricCard';
+import { PipelineCard } from '../components/dashboard/PipelineCard';
 import { ActiveOperations } from '../components/dashboard/ActiveOperations';
 import { AlertStream } from '../components/dashboard/AlertStream';
 import { RecentActivity } from '../components/dashboard/RecentActivity';
@@ -85,6 +86,8 @@ export default function DashboardHome() {
           />
         </motion.div>
       </motion.section>
+
+      <PipelineCard />
 
       <motion.div
         variants={containerVariants}
