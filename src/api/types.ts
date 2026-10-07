@@ -437,3 +437,26 @@ export interface RepoMapping extends RepoMappingInput {
   created_at: string;
   updated_at: string;
 }
+
+// =============================================
+// Triage
+// =============================================
+
+export type TriageDecisionKind = 'fix' | 'needs_review' | 'skip';
+export type TriageCategory = 'code_bug' | 'config' | 'infra' | 'dependency' | 'flaky' | 'unknown';
+
+export interface TriageDecision {
+  id: string;
+  incident_id: string;
+  decision: TriageDecisionKind;
+  rules_passed: boolean;
+  failed_rules: { rule: string; detail: string }[];
+  category: TriageCategory | null;
+  fixable: boolean | null;
+  confidence: number | null;
+  reason: string | null;
+  suspected_location: string | null;
+  model: string | null;
+  cost_usd: number;
+  created_at: string;
+}

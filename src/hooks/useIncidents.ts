@@ -8,6 +8,7 @@ export const incidentKeys = {
   detail: (id: string) => ['incidents', 'detail', id] as const,
   timeline: (id: string) => ['incidents', 'timeline', id] as const,
   similar: (id: string) => ['incidents', 'similar', id] as const,
+  triage: (id: string) => ['incidents', 'triage', id] as const,
 };
 
 export function useIncidents() {
@@ -74,6 +75,25 @@ export function useFixIncident(id: string) {
     mutationFn: (instructions?: string) => incidentsApi.fix(id, instructions),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
+    },
+  });
+}
+
+export function useIncidentTriage(id: string | undefined) {
+  return useQuery({
+    queryKey: incidentKeys.triage(id ?? ''),
+    queryFn: () => incidentsApi.triage(id as string),
+    enabled: !!id,
+  });
+}
+
+export function useRunTriage(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => incidentsApi.runTriage(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: incidentKeys.triage(id) });
       queryClient.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
     },
   });

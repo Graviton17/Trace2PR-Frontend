@@ -13,6 +13,7 @@ import {
 } from '../hooks';
 import { timeAgo } from '../lib/time';
 import type { IncidentDetail } from '../api';
+import TriageCard from '../components/incidents/TriageCard';
 
 const card = 'bg-[var(--surface)] border border-[var(--line)] rounded-xl p-5';
 const actionBtn =
@@ -95,6 +96,8 @@ export default function IncidentDetailPage() {
           </Link>
         )}
       </div>
+
+      <TriageCard incidentId={incident.id} />
 
       {report && (
         <div className={card}>
