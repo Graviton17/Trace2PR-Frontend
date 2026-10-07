@@ -6,4 +6,5 @@ export * from './useKnowledge';
 export * from './useSandbox';
 export * from './useIntegrations';
 export * from './useSettings';
+export * from './useRepoMappings';
 export * from './useHealth';

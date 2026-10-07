@@ -12,6 +12,7 @@ import {
   useSimilarIncidents,
 } from '../hooks';
 import { timeAgo } from '../lib/time';
+import type { IncidentDetail } from '../api';
 
 const card = 'bg-[var(--surface)] border border-[var(--line)] rounded-xl p-5';
 const actionBtn =
@@ -52,6 +53,7 @@ export default function IncidentDetailPage() {
             <StatusBadge status={incident.status} />
           </div>
         </div>
+        <IncidentFacts incident={incident} />
         {incident.description && (
           <p className="text-[var(--muted-strong)] text-sm mt-4 whitespace-pre-wrap font-[var(--sans)]">{incident.description}</p>
         )}
@@ -151,5 +153,41 @@ export default function IncidentDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function IncidentFacts({ incident }: { incident: IncidentDetail }) {
+  const group = incident.error_group;
+  const facts: { label: string; value: string; warn?: boolean }[] = [];
+  if (group) {
+    facts.push({ label: 'Occurrences', value: group.occurrences.toLocaleString() });
+    facts.push({ label: 'First seen', value: timeAgo(group.first_seen) });
+    facts.push({ label: 'Last seen', value: timeAgo(group.last_seen) });
+  }
+  if (incident.environment) facts.push({ label: 'Environment', value: incident.environment });
+  if (incident.source && incident.source !== 'manual') {
+    facts.push({ label: 'Repository', value: incident.repository || 'not mapped', warn: !incident.repository });
+    facts.push({
+      label: 'Commit',
+      value: incident.commit_sha ? incident.commit_sha.slice(0, 12) : 'unknown',
+      warn: !incident.commit_sha,
+    });
+  }
+  if (facts.length === 0) return null;
+
+  return (
+    <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
+      {facts.map((f) => (
+        <div key={f.label} className="bg-[var(--surface-raised)] border border-[var(--line)] rounded-lg px-3 py-2">
+          <dt className="text-[var(--muted)] text-[11px] uppercase tracking-wider font-[var(--mono)]">{f.label}</dt>
+          <dd
+            className={`text-sm font-[var(--mono)] mt-0.5 truncate ${f.warn ? 'text-[var(--danger)]' : 'text-[var(--ink)]'}`}
+            title={f.value}
+          >
+            {f.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

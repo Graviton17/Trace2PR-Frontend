@@ -78,6 +78,23 @@ export interface IncidentDetail {
   report_id: string | null;
   fix_job_id: string | null;
   pr_id: string | null;
+  source?: string | null;
+  environment?: string | null;
+  repository?: string | null;
+  release?: string | null;
+  /** Deployed git SHA; null means the commit is unknown. */
+  commit_sha?: string | null;
+  error_group?: ErrorGroupSummary | null;
+}
+
+export interface ErrorGroupSummary {
+  id: string;
+  fingerprint: string;
+  exception_type: string | null;
+  occurrences: number;
+  first_seen: string;
+  last_seen: string;
+  status: 'active' | 'resolved' | 'ignored';
 }
 
 export interface CreateIncidentRequest {
@@ -396,4 +413,27 @@ export interface WebhookLog {
   processed: boolean;
   error: string | null;
   created_at: string;
+}
+
+// =============================================
+// Repo mappings
+// =============================================
+
+export type RepoLanguage = 'python' | 'javascript' | 'typescript' | 'java';
+
+export interface RepoMappingInput {
+  service: string;
+  repository: string;
+  default_branch: string;
+  language: RepoLanguage | null;
+  install_cmd: string | null;
+  test_cmd: string | null;
+  auto_fix: boolean;
+  enabled: boolean;
+}
+
+export interface RepoMapping extends RepoMappingInput {
+  id: string;
+  created_at: string;
+  updated_at: string;
 }

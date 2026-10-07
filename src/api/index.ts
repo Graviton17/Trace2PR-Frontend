@@ -9,5 +9,6 @@ export { prsApi } from './prs';
 export { knowledgeApi } from './knowledge';
 export { integrationsApi } from './integrations';
 export { settingsApi } from './settings';
+export { repoMappingsApi } from './repoMappings';
 export { healthApi } from './health';
 export { webhooksApi } from './webhooks';

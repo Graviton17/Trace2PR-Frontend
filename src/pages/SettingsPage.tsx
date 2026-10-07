@@ -3,18 +3,19 @@ import { motion } from 'framer-motion';
 import { 
   User, Mail, GitBranch, Shield, 
   Loader2, CheckCircle2, AlertCircle, Bell, 
-  Globe, Palette, Trash2, LogOut
+  Globe, Palette, Trash2, LogOut, FolderGit2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { ApiError } from '../api';
 import { useDeleteAccount, useSettings, useUpdateProfile, useUpdateSettings } from '../hooks';
+import RepoMappingsPanel from '../components/settings/RepoMappingsPanel';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'notifications' | 'appearance' | 'danger'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'repositories' | 'notifications' | 'appearance' | 'danger'>('profile');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: 'error'|'success', text: string} | null>(null);
   
@@ -54,6 +55,7 @@ export default function SettingsPage() {
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'integrations', label: 'Integrations', icon: GitBranch },
+    { id: 'repositories', label: 'Repositories', icon: FolderGit2 },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'danger', label: 'Danger Zone', icon: Trash2 },
@@ -271,6 +273,9 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+
+          {/* Repositories Tab */}
+          {activeTab === 'repositories' && <RepoMappingsPanel />}
 
           {/* Notifications Tab */}
           {activeTab === 'notifications' && (
