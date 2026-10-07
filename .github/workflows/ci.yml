@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck and build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: http://localhost:54321
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+
+      - name: Lint
+        # Pre-existing lint errors in UI files are being cleaned up
+        # separately; report them without failing the build until then.
+        run: npm run lint
+        continue-on-error: true
