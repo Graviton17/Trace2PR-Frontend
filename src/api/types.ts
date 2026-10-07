@@ -19,7 +19,7 @@ export type FixStatus =
   | 'completed'
   | 'failed'
   | 'cancelled';
-export type PRStatus = 'open' | 'merged' | 'closed' | 'changes_requested';
+export type PRStatus = 'draft' | 'open' | 'merged' | 'closed' | 'changes_requested';
 
 export interface PaginatedResponse<T> {
   items: T[];
@@ -172,6 +172,7 @@ export interface AnalysisJob {
 // ---- fixer.py ----
 
 export interface FileDiff {
+  status?: string | null;
   file_path: string;
   diff: string;
   additions: number;
@@ -197,14 +198,28 @@ export interface TestResults {
   failures: TestFailure[];
 }
 
+export interface ReproTest {
+  test_ids: string[];
+  failed_on_baseline: boolean;
+  passes_with_fix: boolean;
+}
+
 export interface FixAttempt {
   id: string;
   job_id: string;
   attempt_number: number;
-  status: string;
+  status: 'running' | 'succeeded' | 'failed' | string;
   created_at: string;
+  completed_at: string | null;
   diff: DiffResponse | null;
   tests: TestResults | null;
+  summary: string | null;
+  failure_reason: string | null;
+  repro_test: ReproTest | null;
+  guardrail_violations: string[];
+  setup: { language?: string; test_cmd?: string; baseline?: { passed: number; failed: number } } | null;
+  timings: Record<string, number>;
+  cost_usd: number;
 }
 
 export interface FixJobDetail {
@@ -214,13 +229,20 @@ export interface FixJobDetail {
   created_at: string;
   updated_at: string;
   attempts: FixAttempt[];
+  repository: string | null;
+  commit_sha: string | null;
+  cost_usd: number;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
 }
 
 export interface TranscriptTurn {
-  role: string;
+  role: 'assistant' | 'tool' | 'system' | string;
   content: string;
   timestamp: string;
-  tool_calls: Record<string, unknown>[] | null;
+  tool_calls: { id?: string; name: string; input: Record<string, unknown> }[] | null;
+  is_error?: boolean | null;
 }
 
 export interface Transcript {
@@ -292,6 +314,13 @@ export interface PRDetail {
   created_at: string;
   updated_at: string;
   ci_status: CIStatus | null;
+  repository: string | null;
+  number: number | null;
+  branch: string | null;
+  fix_job_id: string | null;
+  approved_at: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
 }
 
 export interface PRStats {

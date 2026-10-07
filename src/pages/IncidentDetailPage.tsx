@@ -14,6 +14,7 @@ import {
 import { timeAgo } from '../lib/time';
 import type { IncidentDetail } from '../api';
 import TriageCard from '../components/incidents/TriageCard';
+import FixJobPanel from '../components/fixes/FixJobPanel';
 
 const card = 'bg-[var(--surface)] border border-[var(--line)] rounded-xl p-5';
 const actionBtn =
@@ -98,6 +99,8 @@ export default function IncidentDetailPage() {
       </div>
 
       <TriageCard incidentId={incident.id} />
+
+      {incident.fix_job_id && <FixJobPanel jobId={incident.fix_job_id} />}
 
       {report && (
         <div className={card}>

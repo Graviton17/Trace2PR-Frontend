@@ -12,19 +12,30 @@ export function useFixJobs() {
   return useQuery({ queryKey: fixerKeys.list(), queryFn: fixerApi.listJobs });
 }
 
+const ACTIVE_FIX_STATUSES = new Set([
+  'queued', 'sandbox_creating', 'cloning', 'analyzing', 'fixing', 'testing', 'pr_creating',
+]);
+
+export function isFixActive(status: string | undefined): boolean {
+  return !!status && ACTIVE_FIX_STATUSES.has(status);
+}
+
+/** Polls every 3s while the job is running. */
 export function useFixJob(id: string | undefined) {
   return useQuery({
     queryKey: fixerKeys.detail(id ?? ''),
     queryFn: () => fixerApi.getJob(id as string),
     enabled: !!id,
+    refetchInterval: (query) => (isFixActive(query.state.data?.status) ? 3000 : false),
   });
 }
 
-export function useFixJobTranscript(id: string | undefined) {
+export function useFixJobTranscript(id: string | undefined, live = false, enabled = true) {
   return useQuery({
     queryKey: fixerKeys.transcript(id ?? ''),
     queryFn: () => fixerApi.getTranscript(id as string),
-    enabled: !!id,
+    enabled: !!id && enabled,
+    refetchInterval: live ? 3000 : false,
   });
 }
 
