@@ -8,3 +8,4 @@ export * from './useIntegrations';
 export * from './useSettings';
 export * from './useRepoMappings';
 export * from './useHealth';
+export * from './useOnboarding';

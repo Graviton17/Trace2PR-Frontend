@@ -12,3 +12,4 @@ export { settingsApi } from './settings';
 export { repoMappingsApi } from './repoMappings';
 export { healthApi } from './health';
 export { webhooksApi } from './webhooks';
+export { onboardingApi } from './onboarding';

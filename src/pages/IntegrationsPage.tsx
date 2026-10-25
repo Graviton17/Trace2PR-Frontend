@@ -6,6 +6,7 @@ import {
   RefreshCw, AlertTriangle, Wifi
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { WEBHOOK_HELP } from '../lib/integrations';
 import { integrationsApi } from '../api';
 import type { ConnectResponse, Integration, IntegrationCatalogItem, StatusResponse } from '../api';
 
@@ -21,16 +22,6 @@ const categoryIcons: Record<string, React.ComponentType<{ className?: string }>>
   incident: Bell,
   vcs: GitBranch,
   cloud: Cloud,
-};
-
-const WEBHOOK_HELP: Record<string, string> = {
-  sentry:
-    'In Sentry, create an internal integration (Settings → Developer Settings) with this webhook URL and the "issue" and "error" webhooks enabled, or add it to an alert rule\'s webhook action.',
-  datadog:
-    'In Datadog, add a webhook (Integrations → Webhooks) with this URL and mention it in your monitors (@webhook-trace2pr).',
-  cloudwatch: 'Subscribe this URL (HTTPS) to the SNS topic your CloudWatch alarms notify.',
-  pagerduty: 'In PagerDuty, add a generic webhook subscription with this URL.',
-  grafana: 'In Grafana, add a webhook contact point with this URL.',
 };
 
 const categoryLabels: Record<string, string> = {

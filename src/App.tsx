@@ -14,6 +14,8 @@ import SandboxPage from './pages/SandboxPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
+import OnboardingPage from './pages/OnboardingPage';
+import { useOnboarding } from './hooks';
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -33,6 +35,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  return <>{children}</>;
+}
+
+function FullPageSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--page)]">
+      <div className="w-8 h-8 border-4 border-[var(--acid)] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+// The dashboard opens only once onboarding is complete (GitHub, repos,
+// monitoring connected). If the status can't be loaded, don't lock the
+// user out: the dashboard shows its own errors.
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const { data, isLoading, isError } = useOnboarding();
+  if (isLoading) return <FullPageSpinner />;
+  if (!isError && data && !data.completed) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
@@ -69,10 +89,19 @@ function AppRoutes() {
       } />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       
-      {/* Protected dashboard routes */}
+      {/* First-run setup: GitHub -> repositories -> monitoring */}
+      <Route path="/onboarding" element={
+        <ProtectedRoute>
+          <OnboardingPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Protected dashboard routes (after onboarding) */}
       <Route path="/dashboard" element={
         <ProtectedRoute>
-          <DashboardLayout />
+          <OnboardingGate>
+            <DashboardLayout />
+          </OnboardingGate>
         </ProtectedRoute>
       }>
         <Route index element={<DashboardHome />} />

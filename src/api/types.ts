@@ -498,3 +498,10 @@ export interface TriageDecision {
   cost_usd: number;
   created_at: string;
 }
+
+export interface OnboardingStatus {
+  completed: boolean;
+  steps: { github: boolean; repos: boolean; monitoring: boolean };
+  repo_mappings: { service: string; repository: string }[];
+  monitoring: { service: string; webhook_url: string | null }[];
+}
