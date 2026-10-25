@@ -23,6 +23,16 @@ const categoryIcons: Record<string, React.ComponentType<{ className?: string }>>
   cloud: Cloud,
 };
 
+const WEBHOOK_HELP: Record<string, string> = {
+  sentry:
+    'In Sentry, create an internal integration (Settings → Developer Settings) with this webhook URL and the "issue" and "error" webhooks enabled, or add it to an alert rule\'s webhook action.',
+  datadog:
+    'In Datadog, add a webhook (Integrations → Webhooks) with this URL and mention it in your monitors (@webhook-trace2pr).',
+  cloudwatch: 'Subscribe this URL (HTTPS) to the SNS topic your CloudWatch alarms notify.',
+  pagerduty: 'In PagerDuty, add a generic webhook subscription with this URL.',
+  grafana: 'In Grafana, add a webhook contact point with this URL.',
+};
+
 const categoryLabels: Record<string, string> = {
   observability: 'Observability',
   incident: 'Incident Management',
@@ -30,15 +40,26 @@ const categoryLabels: Record<string, string> = {
   cloud: 'Cloud',
 };
 
+/** Query params Composio adds when it sends the user back from a Connect Link. */
+function readConnectReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const service = params.get('service');
+  const failed = params.get('error') || (params.get('status') === 'failed' ? 'authorization was not completed' : null);
+  return service ? { service, failed } : null;
+}
+
 export default function IntegrationsPage() {
-  const [activeId, setActiveId] = useState<string>('');
+  const [connectReturn] = useState(readConnectReturn);
+  const [activeId, setActiveId] = useState<string>(connectReturn?.service ?? '');
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState<string | null>(null);
-  const [message, setMessage] = useState<{type: 'error'|'success', text: string} | null>(null);
+  const [message, setMessage] = useState<{type: 'error'|'success', text: string} | null>(
+    connectReturn?.failed ? { type: 'error', text: `Failed to connect ${connectReturn.service}: ${connectReturn.failed}` } : null,
+  );
 
   // Load catalog and user integrations on mount
   useEffect(() => {
@@ -46,22 +67,23 @@ export default function IntegrationsPage() {
     loadIntegrations();
   }, []);
 
-  // Check for URL params (OAuth callback)
+  // Back from a Composio Connect Link: confirm the connection is active.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const connected = params.get('connected');
-    const error = params.get('error');
-    const service = params.get('service');
-
-    if (connected) {
-      setMessage({ type: 'success', text: `${connected} connected successfully!` });
-      loadIntegrations();
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (error && service) {
-      setMessage({ type: 'error', text: `Failed to connect ${service}: ${error}` });
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    if (!connectReturn) return;
+    window.history.replaceState({}, document.title, window.location.pathname);
+    if (connectReturn.failed) return;
+    const service = connectReturn.service;
+    integrationsApi
+      .status(service)
+      .then((result) => {
+        setMessage(
+          result.connected
+            ? { type: 'success', text: `${service} connected.` }
+            : { type: 'error', text: result.error || `${service} is not connected yet` },
+        );
+      })
+      .catch((err) => setMessage({ type: 'error', text: err.message || 'Failed to check status' }))
+      .finally(loadIntegrations);
   }, []);
 
   const loadCatalog = async () => {
@@ -177,6 +199,11 @@ export default function IntegrationsPage() {
   }
 
   const CategoryIcon = categoryIcons[activeIntegration.category] || Activity;
+  // The webhook secret is shown as part of the webhook URL, not on its own.
+  const visibleConfig = Object.entries(configuredIntegration?.config ?? {}).filter(
+    ([key]) => key !== 'webhook_secret',
+  );
+  const webhookUrl = configuredIntegration?.webhook_url;
 
   return (
     <div className="max-w-[1000px] mx-auto py-8">
@@ -341,11 +368,11 @@ export default function IntegrationsPage() {
                 </div>
               )}
 
-              {configuredIntegration?.config && Object.keys(configuredIntegration.config).length > 0 && (
+              {visibleConfig.length > 0 && (
                 <div className="pt-4 border-t border-[var(--line)]">
                   <h4 className="text-[var(--muted-strong)] text-xs font-semibold uppercase tracking-wider font-[var(--mono)] mb-2">Configuration</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm font-[var(--sans)]">
-                    {Object.entries(configuredIntegration.config).map(([key, value]) => (
+                    {visibleConfig.map(([key, value]) => (
                       <div key={key} className="flex justify-between">
                         <span className="text-[var(--muted)]">{key}</span>
                         <span className="text-[var(--ink)] font-[var(--mono)]">{String(value)}</span>
@@ -451,30 +478,36 @@ export default function IntegrationsPage() {
             </div>
           )}
 
-          {/* Webhook Info Section */}
-          {isConnected && (
+          {/* Where alerts go / what GitHub is used for */}
+          {isConnected && webhookUrl && (
             <div className="mt-8 p-4 rounded-lg bg-[var(--page-deep)] border border-[var(--line)]">
               <h4 className="flex items-center gap-2 text-[var(--ink)] font-semibold font-[var(--sans)] mb-3">
                 <Wifi className="w-5 h-5 text-[var(--acid)]" />
-                Webhook Configuration
+                Your webhook URL
               </h4>
               <p className="text-[var(--muted)] text-sm font-[var(--sans)] mb-3">
-                To receive real-time alerts from {activeIntegration.name}, configure the webhook URL in your {activeIntegration.name} settings:
+                {WEBHOOK_HELP[activeId] ?? `Send ${activeIntegration.name} alerts to this URL.`} It is unique to
+                your account; keep it private.
               </p>
               <div className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--line)] rounded-lg p-3 font-[var(--mono)] text-xs">
-                <code className="flex-1 text-[var(--ink)]">
-                  {import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'}/webhooks/composio
-                </code>
-                <button 
-                  className="px-3 py-1 rounded text-[var(--acid)] hover:bg-[var(--acid)]/10 text-xs font-[var(--mono)]"
-                  onClick={() => navigator.clipboard.writeText(`${import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'}/webhooks/composio`)}
+                <code className="flex-1 text-[var(--ink)] break-all">{webhookUrl}</code>
+                <button
+                  className="px-3 py-1 rounded text-[var(--acid)] hover:bg-[var(--acid)]/10 text-xs font-[var(--mono)] shrink-0"
+                  onClick={() => navigator.clipboard.writeText(webhookUrl)}
                 >
                   Copy
                 </button>
               </div>
               <p className="text-[var(--muted)] text-xs font-[var(--sans)] mt-2">
-                Composio will automatically forward events from {activeIntegration.name} to this endpoint.
+                When an alert has no stack trace, Trace2PR fetches the error details from{' '}
+                {activeIntegration.name} through this connection.
               </p>
+            </div>
+          )}
+          {isConnected && activeId === 'github' && (
+            <div className="mt-8 p-4 rounded-lg bg-[var(--page-deep)] border border-[var(--line)] text-sm font-[var(--sans)] text-[var(--muted)]">
+              Trace2PR reads your code and opens draft pull requests as your GitHub account through this
+              connection. Pick which repository each service lives in under Settings → Repositories.
             </div>
           )}
 

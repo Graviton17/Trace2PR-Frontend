@@ -375,6 +375,15 @@ export interface Integration {
   error_message?: string | null;
   created_at: string;
   updated_at: string;
+  /** Where this monitoring tool should send alerts (null for GitHub). */
+  webhook_url?: string | null;
+}
+
+export interface GitHubRepo {
+  full_name: string;
+  default_branch: string;
+  private: boolean;
+  pushed_at?: string | null;
 }
 
 export interface IntegrationCatalogItem {

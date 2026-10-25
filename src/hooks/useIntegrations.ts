@@ -16,6 +16,16 @@ export function useIntegrations() {
   return useQuery({ queryKey: integrationKeys.list(), queryFn: integrationsApi.list });
 }
 
+/** Repos of the user's connected GitHub account (empty until GitHub is connected). */
+export function useGitHubRepos(enabled: boolean) {
+  return useQuery({
+    queryKey: ['integrations', 'github', 'repos'],
+    queryFn: integrationsApi.githubRepos,
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 export function useConnectIntegration() {
   const queryClient = useQueryClient();
   return useMutation({

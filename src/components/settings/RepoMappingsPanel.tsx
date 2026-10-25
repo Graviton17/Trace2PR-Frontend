@@ -5,6 +5,8 @@ import type { RepoLanguage, RepoMapping, RepoMappingInput } from '../../api';
 import {
   useCreateRepoMapping,
   useDeleteRepoMapping,
+  useGitHubRepos,
+  useIntegrations,
   useRepoMappings,
   useUpdateRepoMapping,
 } from '../../hooks';
@@ -33,6 +35,9 @@ export default function RepoMappingsPanel() {
   const createMapping = useCreateRepoMapping();
   const updateMapping = useUpdateRepoMapping();
   const deleteMapping = useDeleteRepoMapping();
+  const { data: integrations = [] } = useIntegrations();
+  const githubConnected = integrations.some((i) => i.service === 'github' && i.status === 'connected');
+  const { data: repos = [] } = useGitHubRepos(githubConnected);
 
   const [form, setForm] = useState<RepoMappingInput>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +136,23 @@ export default function RepoMappingsPanel() {
           <div>
             <label htmlFor="rm-repo" className={label}>Repository</label>
             <input id="rm-repo" className={input} placeholder="acme/checkout-api" value={form.repository}
-              onChange={(e) => set('repository', e.target.value)} />
+              list="rm-repo-options" autoComplete="off"
+              onChange={(e) => {
+                const repo = repos.find((r) => r.full_name === e.target.value);
+                setForm((f) => ({
+                  ...f,
+                  repository: e.target.value,
+                  default_branch: repo?.default_branch ?? f.default_branch,
+                }));
+              }} />
+            <datalist id="rm-repo-options">
+              {repos.map((r) => <option key={r.full_name} value={r.full_name} />)}
+            </datalist>
+            {!githubConnected && (
+              <p className="text-[var(--muted)] text-xs font-[var(--sans)] mt-1">
+                Connect GitHub in Integrations to pick from your repositories.
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="rm-branch" className={label}>Default branch</label>
