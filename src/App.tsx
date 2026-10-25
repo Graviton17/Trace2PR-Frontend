@@ -47,12 +47,35 @@ function FullPageSpinner() {
 }
 
 // The dashboard opens only once onboarding is complete (GitHub, repos,
-// monitoring connected). If the status can't be loaded, don't lock the
-// user out: the dashboard shows its own errors.
+// monitoring connected), for new and returning users alike. The status is
+// re-checked while the dashboard is open, so breaking the setup (e.g.
+// disconnecting GitHub) sends the user back to finish it.
 function OnboardingGate({ children }: { children: React.ReactNode }) {
-  const { data, isLoading, isError } = useOnboarding();
+  const { data, isLoading, isError, refetch, isFetching } = useOnboarding();
+  const { signOut } = useAuth();
   if (isLoading) return <FullPageSpinner />;
-  if (!isError && data && !data.completed) return <Navigate to="/onboarding" replace />;
+  if (isError || !data) {
+    // Can't confirm setup: don't let the user past the gate.
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--page)] px-4">
+        <div className="max-w-sm text-center space-y-4">
+          <p className="text-[var(--ink)] font-semibold">Couldn't check your setup</p>
+          <p className="text-[var(--muted)] text-sm">The Trace2PR API isn't reachable right now.</p>
+          <div className="flex justify-center gap-3">
+            <button onClick={() => refetch()} disabled={isFetching}
+              className="px-4 py-2 rounded-lg bg-[var(--acid)] text-[#091006] text-sm font-semibold disabled:opacity-50">
+              {isFetching ? 'Retrying…' : 'Retry'}
+            </button>
+            <button onClick={() => signOut()}
+              className="px-4 py-2 rounded-lg border border-[var(--line)] text-[var(--muted-strong)] text-sm">
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!data.completed) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 

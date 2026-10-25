@@ -133,6 +133,11 @@ export default function OnboardingPage() {
             Connect where your code lives and where your errors are reported. When an error happens,
             Trace2PR reproduces it, fixes it in a sandbox, and opens a pull request for you to review.
           </p>
+          {status && !status.completed && (
+            <p className="text-[var(--muted-strong)] text-sm mt-3 font-[var(--sans)]">
+              Finish these steps to open the dashboard.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 md:gap-10">

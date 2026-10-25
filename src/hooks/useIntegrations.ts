@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { integrationsApi } from '../api';
+import { onboardingKeys } from './useOnboarding';
 
 export const integrationKeys = {
   all: ['integrations'] as const,
@@ -38,7 +39,10 @@ export function useConnectIntegration() {
       category: string;
       config?: Record<string, unknown>;
     }) => integrationsApi.connect(service, category, config),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: integrationKeys.list() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: integrationKeys.list() });
+      queryClient.invalidateQueries({ queryKey: onboardingKeys.status });
+    },
   });
 }
 
@@ -46,7 +50,10 @@ export function useVerifyIntegration() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (service: string) => integrationsApi.verify(service),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: integrationKeys.list() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: integrationKeys.list() });
+      queryClient.invalidateQueries({ queryKey: onboardingKeys.status });
+    },
   });
 }
 
@@ -54,6 +61,9 @@ export function useRemoveIntegration() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (service: string) => integrationsApi.remove(service),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: integrationKeys.list() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: integrationKeys.list() });
+      queryClient.invalidateQueries({ queryKey: onboardingKeys.status });
+    },
   });
 }

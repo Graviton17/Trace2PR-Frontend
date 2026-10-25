@@ -8,6 +8,7 @@ import {
 import { cn } from '../lib/utils';
 import { WEBHOOK_HELP } from '../lib/integrations';
 import { integrationsApi } from '../api';
+import { useRecheckOnboarding } from '../hooks';
 import type { ConnectResponse, Integration, IntegrationCatalogItem, StatusResponse } from '../api';
 
 // Catalog items from the API, decorated client-side with an icon component
@@ -41,6 +42,7 @@ function readConnectReturn() {
 
 export default function IntegrationsPage() {
   const [connectReturn] = useState(readConnectReturn);
+  const recheckOnboarding = useRecheckOnboarding();
   const [activeId, setActiveId] = useState<string>(connectReturn?.service ?? '');
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -109,6 +111,7 @@ export default function IntegrationsPage() {
     try {
       const data = await integrationsApi.list();
       setIntegrations(data);
+      recheckOnboarding();
     } catch (err) {
       console.error('Failed to load integrations', err);
     } finally {
