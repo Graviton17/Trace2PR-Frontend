@@ -1,36 +1,25 @@
 import { useState } from 'react';
-import { FolderGit2, Loader2, Plus, Trash2 } from 'lucide-react';
-import { ApiError } from '../../api';
+import { Link } from 'react-router-dom';
+import { ArrowRight, FolderGit2, Plus, Trash2 } from 'lucide-react';
 import type { RepoLanguage, RepoMapping, RepoMappingInput } from '../../api';
 import {
-  useCreateRepoMapping,
-  useDeleteRepoMapping,
-  useGitHubRepos,
-  useIntegrations,
-  useRepoMappings,
-  useUpdateRepoMapping,
+  useCreateRepoMapping, useDeleteRepoMapping, useGitHubRepos, useIntegrations, useRepoMappings, useUpdateRepoMapping,
 } from '../../hooks';
 import { cn } from '../../lib/utils';
+import { EmptyState, ListSkeleton } from '../common/StateViews';
+import { Button } from '../ui/button';
+import { Card } from '../ui/card';
+import { errorMessage, useFeedback } from '../ui/feedback';
+import { Field, Input, Select, Switch } from '../ui/input';
 
 const REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 const EMPTY: RepoMappingInput = {
-  service: '',
-  repository: '',
-  default_branch: 'main',
-  language: null,
-  install_cmd: null,
-  test_cmd: null,
-  auto_fix: false,
-  enabled: true,
+  service: '', repository: '', default_branch: 'main', language: null,
+  install_cmd: null, test_cmd: null, auto_fix: false, enabled: true,
 };
 
-const label =
-  'block text-xs font-semibold text-[var(--muted-strong)] uppercase tracking-wider font-[var(--mono)] mb-2';
-const input =
-  'w-full bg-[var(--page-deep)] border border-[var(--line)] focus:border-[var(--acid)] rounded-lg px-3 py-2 text-[var(--ink)] font-[var(--sans)] text-sm outline-none transition-colors';
-
-export default function RepoMappingsPanel() {
+export function RepoMappingsPanel() {
   const { data: mappings = [], isLoading } = useRepoMappings();
   const createMapping = useCreateRepoMapping();
   const updateMapping = useUpdateRepoMapping();
@@ -38,14 +27,16 @@ export default function RepoMappingsPanel() {
   const { data: integrations = [] } = useIntegrations();
   const githubConnected = integrations.some((i) => i.service === 'github' && i.status === 'connected');
   const { data: repos = [] } = useGitHubRepos(githubConnected);
+  const { toast, confirm } = useFeedback();
 
+  const [adding, setAdding] = useState(false);
   const [form, setForm] = useState<RepoMappingInput>(EMPTY);
   const [error, setError] = useState<string | null>(null);
 
-  const set = <K extends keyof RepoMappingInput>(key: K, value: RepoMappingInput[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
+  const set = <K extends keyof RepoMappingInput>(key: K, value: RepoMappingInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
-  const handleCreate = async () => {
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
     if (!form.service.trim()) return setError('Service is required.');
     if (!REPO_PATTERN.test(form.repository.trim())) return setError("Repository must look like 'org/repo'.");
@@ -57,140 +48,109 @@ export default function RepoMappingsPanel() {
         install_cmd: form.install_cmd?.trim() || null,
         test_cmd: form.test_cmd?.trim() || null,
       });
+      toast(`${form.service.trim()} → ${form.repository.trim()} added.`);
       setForm(EMPTY);
+      setAdding(false);
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : 'Failed to save mapping');
+      setError(errorMessage(err, 'Failed to save mapping'));
     }
   };
 
   const toggle = (mapping: RepoMapping, key: 'enabled' | 'auto_fix') =>
-    updateMapping.mutate({ id: mapping.id, data: { [key]: !mapping[key] } });
+    updateMapping.mutate({ id: mapping.id, data: { [key]: !mapping[key] } }, {
+      onError: (e) => toast(errorMessage(e), 'error'),
+    });
+
+  const remove = async (m: RepoMapping) => {
+    if (!await confirm({ title: `Remove ${m.service}?`, description: `Errors from ${m.service} will no longer be fixed in ${m.repository}.`, confirmLabel: 'Remove', danger: true })) return;
+    deleteMapping.mutate(m.id, { onSuccess: () => toast('Mapping removed.'), onError: (e) => toast(errorMessage(e), 'error') });
+  };
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div>
-        <h4 className="text-[var(--ink)] font-semibold font-[var(--sans)]">Repository mappings</h4>
-        <p className="text-[var(--muted)] text-sm font-[var(--sans)] mt-1">
-          Tell Trace2PR which repository holds the code for each service. For Sentry, the service is
-          the project slug (or numeric project ID). Unmapped errors still open incidents, but can't
-          be fixed.
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <p className="text-sm text-muted flex-1 min-w-[260px]">
+          Which repository holds the code for each service. The service is the name your monitoring tool reports
+          (for Sentry, the project slug). Unmapped errors still open incidents, but can't be fixed.
         </p>
+        {!adding && <Button variant="primary" onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add repository</Button>}
       </div>
 
-      {isLoading ? (
-        <p className="text-[var(--muted)] text-sm">Loading…</p>
-      ) : mappings.length === 0 ? (
-        <div className="bg-[var(--surface-raised)] border border-[var(--line)] rounded-xl p-6 text-center">
-          <FolderGit2 className="w-10 h-10 text-[var(--muted)] mx-auto mb-3" />
-          <p className="text-[var(--muted)] text-sm font-[var(--sans)]">No repositories mapped yet.</p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {mappings.map((m) => (
-            <li
-              key={m.id}
-              className={cn(
-                'flex flex-wrap items-center gap-3 p-3 bg-[var(--surface-raised)] border border-[var(--line)] rounded-lg',
-                !m.enabled && 'opacity-60'
-              )}
-            >
-              <div className="flex-1 min-w-[220px]">
-                <p className="text-[var(--ink)] text-sm font-[var(--mono)]">
-                  {m.service} <span className="text-[var(--muted)]">→</span> {m.repository}
-                </p>
-                <p className="text-[var(--muted)] text-xs font-[var(--mono)] mt-0.5">
-                  {m.default_branch}
-                  {m.language && ` · ${m.language}`}
-                  {m.test_cmd && ` · test: ${m.test_cmd}`}
-                </p>
-              </div>
-              <label className="flex items-center gap-1.5 text-xs text-[var(--muted-strong)] font-[var(--sans)]">
-                <input type="checkbox" checked={m.enabled} onChange={() => toggle(m, 'enabled')} />
-                Enabled
-              </label>
-              <label className="flex items-center gap-1.5 text-xs text-[var(--muted-strong)] font-[var(--sans)]">
-                <input type="checkbox" checked={m.auto_fix} onChange={() => toggle(m, 'auto_fix')} />
-                Auto-fix
-              </label>
-              <button
-                onClick={() => deleteMapping.mutate(m.id)}
-                disabled={deleteMapping.isPending}
-                aria-label={`Delete mapping for ${m.service}`}
-                className="p-2 rounded-lg text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
+      {adding && (
+        <Card className="p-4">
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Service" htmlFor="rm-service">
+                <Input id="rm-service" mono placeholder="checkout-api" value={form.service} onChange={(e) => set('service', e.target.value)} />
+              </Field>
+              <Field label="Repository" htmlFor="rm-repo"
+                hint={!githubConnected ? <>Connect GitHub in <Link className="text-acid hover:underline" to="/dashboard/settings/integrations">Integrations</Link> to pick from your repositories.</> : undefined}>
+                <Input id="rm-repo" mono placeholder="acme/checkout-api" value={form.repository} list="rm-repo-options" autoComplete="off"
+                  onChange={(e) => {
+                    const repo = repos.find((r) => r.full_name === e.target.value);
+                    setForm((f) => ({ ...f, repository: e.target.value, default_branch: repo?.default_branch ?? f.default_branch }));
+                  }} />
+                <datalist id="rm-repo-options">{repos.map((r) => <option key={r.full_name} value={r.full_name} />)}</datalist>
+              </Field>
+              <Field label="Default branch" htmlFor="rm-branch">
+                <Input id="rm-branch" mono value={form.default_branch} onChange={(e) => set('default_branch', e.target.value)} />
+              </Field>
+              <Field label="Language" htmlFor="rm-lang">
+                <Select id="rm-lang" value={form.language ?? ''} onChange={(e) => set('language', (e.target.value || null) as RepoLanguage | null)}>
+                  <option value="">Auto-detect</option>
+                  <option value="python">Python</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="typescript">TypeScript</option>
+                  <option value="java">Java</option>
+                </Select>
+              </Field>
+              <Field label="Install command (optional)" htmlFor="rm-install">
+                <Input id="rm-install" mono placeholder='pip install -e ".[dev]"' value={form.install_cmd ?? ''} onChange={(e) => set('install_cmd', e.target.value)} />
+              </Field>
+              <Field label="Test command (optional)" htmlFor="rm-test">
+                <Input id="rm-test" mono placeholder="pytest -x" value={form.test_cmd ?? ''} onChange={(e) => set('test_cmd', e.target.value)} />
+              </Field>
+            </div>
+            {error && <p className="text-sm text-danger" role="alert">{error}</p>}
+            <div className="flex gap-2">
+              <Button type="submit" variant="primary" loading={createMapping.isPending}>Add mapping</Button>
+              <Button variant="ghost" onClick={() => { setAdding(false); setError(null); }}>Cancel</Button>
+            </div>
+          </form>
+        </Card>
       )}
 
-      <div className="pt-6 border-t border-[var(--line)] space-y-4">
-        <h5 className="text-[var(--ink)] font-semibold text-sm font-[var(--sans)]">Add a mapping</h5>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="rm-service" className={label}>Service</label>
-            <input id="rm-service" className={input} placeholder="checkout-api" value={form.service}
-              onChange={(e) => set('service', e.target.value)} />
-          </div>
-          <div>
-            <label htmlFor="rm-repo" className={label}>Repository</label>
-            <input id="rm-repo" className={input} placeholder="acme/checkout-api" value={form.repository}
-              list="rm-repo-options" autoComplete="off"
-              onChange={(e) => {
-                const repo = repos.find((r) => r.full_name === e.target.value);
-                setForm((f) => ({
-                  ...f,
-                  repository: e.target.value,
-                  default_branch: repo?.default_branch ?? f.default_branch,
-                }));
-              }} />
-            <datalist id="rm-repo-options">
-              {repos.map((r) => <option key={r.full_name} value={r.full_name} />)}
-            </datalist>
-            {!githubConnected && (
-              <p className="text-[var(--muted)] text-xs font-[var(--sans)] mt-1">
-                Connect GitHub in Integrations to pick from your repositories.
-              </p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="rm-branch" className={label}>Default branch</label>
-            <input id="rm-branch" className={input} value={form.default_branch}
-              onChange={(e) => set('default_branch', e.target.value)} />
-          </div>
-          <div>
-            <label htmlFor="rm-lang" className={label}>Language</label>
-            <select id="rm-lang" className={input} value={form.language ?? ''}
-              onChange={(e) => set('language', (e.target.value || null) as RepoLanguage | null)}>
-              <option value="">Auto-detect</option>
-              <option value="python">Python</option>
-              <option value="javascript">JavaScript</option>
-              <option value="typescript">TypeScript</option>
-              <option value="java">Java</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="rm-install" className={label}>Install command (optional)</label>
-            <input id="rm-install" className={input} placeholder='pip install -e ".[dev]"'
-              value={form.install_cmd ?? ''} onChange={(e) => set('install_cmd', e.target.value)} />
-          </div>
-          <div>
-            <label htmlFor="rm-test" className={label}>Test command (optional)</label>
-            <input id="rm-test" className={input} placeholder="pytest -x"
-              value={form.test_cmd ?? ''} onChange={(e) => set('test_cmd', e.target.value)} />
-          </div>
-        </div>
-        {error && <p className="text-[var(--danger)] text-sm font-[var(--sans)]">{error}</p>}
-        <button
-          onClick={handleCreate}
-          disabled={createMapping.isPending}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--acid)] text-[#091006] hover:bg-[#d1ff99] transition-colors font-bold text-sm font-[var(--sans)] disabled:opacity-50"
-        >
-          {createMapping.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          Add mapping
-        </button>
-      </div>
+      <Card className="overflow-hidden">
+        {isLoading ? (
+          <ListSkeleton rows={2} />
+        ) : mappings.length === 0 ? (
+          <EmptyState icon={FolderGit2} title="No repositories mapped" hint="Add one so Trace2PR knows where to fix errors." />
+        ) : (
+          <ul className="divide-y divide-line">
+            {mappings.map((m) => (
+              <li key={m.id} className={cn('flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3', !m.enabled && 'opacity-60')}>
+                <div className="flex-1 min-w-[220px]">
+                  <p className="text-sm font-mono text-ink flex items-center gap-1.5 flex-wrap">
+                    {m.service} <ArrowRight className="w-3.5 h-3.5 text-muted" /> {m.repository}
+                  </p>
+                  <p className="text-xs text-muted font-mono mt-0.5">
+                    {m.default_branch}{m.language && ` · ${m.language}`}{m.test_cmd && ` · test: ${m.test_cmd}`}
+                  </p>
+                </div>
+                <span className="flex items-center gap-2 text-xs text-muted-strong">
+                  <Switch checked={m.enabled} onChange={() => toggle(m, 'enabled')} label={`Enable ${m.service}`} /> Enabled
+                </span>
+                <span className="flex items-center gap-2 text-xs text-muted-strong" title="Start a fix automatically when triage marks an error fixable">
+                  <Switch checked={m.auto_fix} onChange={() => toggle(m, 'auto_fix')} label={`Auto-fix ${m.service}`} /> Auto-fix
+                </span>
+                <Button size="icon-sm" variant="ghost" className="hover:text-danger" onClick={() => remove(m)} aria-label={`Remove mapping for ${m.service}`}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

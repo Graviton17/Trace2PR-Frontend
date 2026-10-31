@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { incidentsApi } from '../api';
-import type { CreateIncidentRequest, UpdateIncidentRequest } from '../api';
 
-export const incidentKeys = {
+const incidentKeys = {
   all: ['incidents'] as const,
   list: () => ['incidents', 'list'] as const,
   detail: (id: string) => ['incidents', 'detail', id] as const,
@@ -11,8 +10,9 @@ export const incidentKeys = {
   triage: (id: string) => ['incidents', 'triage', id] as const,
 };
 
+/** Re-polled so the dashboard reflects fixes moving through the pipeline. */
 export function useIncidents() {
-  return useQuery({ queryKey: incidentKeys.list(), queryFn: incidentsApi.list });
+  return useQuery({ queryKey: incidentKeys.list(), queryFn: incidentsApi.list, refetchInterval: 20_000 });
 }
 
 export function useIncident(id: string | undefined) {
@@ -39,25 +39,6 @@ export function useSimilarIncidents(id: string | undefined) {
   });
 }
 
-export function useCreateIncident() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: CreateIncidentRequest) => incidentsApi.create(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: incidentKeys.all }),
-  });
-}
-
-export function useUpdateIncident(id: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: UpdateIncidentRequest) => incidentsApi.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
-      queryClient.invalidateQueries({ queryKey: incidentKeys.list() });
-    },
-  });
-}
-
 export function useAnalyzeIncident(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -65,6 +46,7 @@ export function useAnalyzeIncident(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
+      queryClient.invalidateQueries({ queryKey: incidentKeys.list() });
     },
   });
 }
@@ -76,6 +58,7 @@ export function useFixIncident(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
+      queryClient.invalidateQueries({ queryKey: incidentKeys.list() });
     },
   });
 }

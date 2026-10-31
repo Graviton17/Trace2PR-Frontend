@@ -1,5 +1,4 @@
 export * from './types';
-export { ApiError, apiClient, toQueryString } from './client';
 export { alertsApi } from './alerts';
 export { incidentsApi } from './incidents';
 export { analysisApi } from './analysis';
@@ -11,5 +10,6 @@ export { integrationsApi } from './integrations';
 export { settingsApi } from './settings';
 export { repoMappingsApi } from './repoMappings';
 export { healthApi } from './health';
-export { webhooksApi } from './webhooks';
 export { onboardingApi } from './onboarding';
+export { metricsApi } from './metrics';
+export { sdkKeysApi } from './sdkKeys';

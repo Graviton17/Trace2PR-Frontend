@@ -3,7 +3,7 @@ import { repoMappingsApi } from '../api';
 import type { RepoMappingInput } from '../api';
 import { onboardingKeys } from './useOnboarding';
 
-export const repoMappingKeys = {
+const repoMappingKeys = {
   all: ['repo-mappings'] as const,
 };
 

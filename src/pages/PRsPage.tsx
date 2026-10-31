@@ -1,149 +1,211 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Check, ExternalLink, FileDiff, X } from 'lucide-react';
-import type { PRDetail } from '../api';
-import { PageHeader } from '../components/common/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '../components/common/StateViews';
+import { useMemo } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import {
+  ArrowLeft, CheckCircle2, CircleDot, ExternalLink, GitBranch, GitMerge, GitPullRequest, GitPullRequestClosed,
+  GitPullRequestDraft, MousePointerClick, ShieldAlert, XCircle,
+} from 'lucide-react';
+import type { PRDetail, PRStatus } from '../api';
 import { StatusBadge } from '../components/common/Badges';
-import DiffViewer from '../components/fixes/DiffViewer';
-import { useApprovePR, usePRCiStatus, usePRDiff, usePRStats, usePRs, useRejectPR } from '../hooks';
+import { FilterTabs, SearchInput } from '../components/common/Controls';
+import { ListPaneHeader, SplitView } from '../components/common/SplitView';
+import { EmptyState, ErrorState, ListSkeleton, LoadingState, Skeleton } from '../components/common/StateViews';
+import { DiffViewer } from '../components/fixes/DiffViewer';
+import { PRReviewActions } from '../components/prs/PRReviewActions';
+import { buttonVariants } from '../components/ui/button';
+import { Card, CardHeader } from '../components/ui/card';
+import { usePR, usePRCiStatus, usePRDiff, usePRStats, usePRs } from '../hooks';
 import { formatMinutes, timeAgo } from '../lib/time';
+import { cn } from '../lib/utils';
 
-const btn =
-  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold font-[var(--sans)] transition-colors disabled:opacity-50';
+type View = 'review' | 'open' | 'merged' | 'closed' | 'all';
 
-function CiStatus({ prId }: { prId: string }) {
-  const { data, isLoading } = usePRCiStatus(prId);
-  if (isLoading) return <span className="text-[var(--muted)] text-xs">CI…</span>;
-  return <StatusBadge status={`ci ${data?.state ?? 'unknown'}`} />;
-}
+const VIEWS: Record<View, { label: string; statuses?: PRStatus[] }> = {
+  review: { label: 'Needs review', statuses: ['draft'] },
+  open: { label: 'Open', statuses: ['open', 'changes_requested'] },
+  merged: { label: 'Merged', statuses: ['merged'] },
+  closed: { label: 'Closed', statuses: ['closed'] },
+  all: { label: 'All' },
+};
 
-function PRRow({ pr, showCi }: { pr: PRDetail; showCi: boolean }) {
-  const [showDiff, setShowDiff] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState('');
-  const approve = useApprovePR();
-  const reject = useRejectPR();
-  const { data: diff, isLoading: diffLoading } = usePRDiff(pr.id, showDiff);
-  const error = approve.error ?? reject.error;
+const PR_ICON: Record<PRStatus, { icon: typeof GitPullRequest; cls: string }> = {
+  draft: { icon: GitPullRequestDraft, cls: 'text-warning' },
+  open: { icon: GitPullRequest, cls: 'text-acid' },
+  changes_requested: { icon: GitPullRequest, cls: 'text-warning' },
+  merged: { icon: GitMerge, cls: 'text-violet' },
+  closed: { icon: GitPullRequestClosed, cls: 'text-danger' },
+};
 
-  return (
-    <li className="p-4 space-y-3">
-      <div className="flex items-center gap-4">
-        <div className="flex-1 min-w-0">
-          <p className="text-[var(--ink)] font-semibold text-sm truncate font-[var(--sans)]">{pr.title}</p>
-          <p className="text-[var(--muted)] text-xs font-[var(--mono)]">
-            {pr.repository ? `${pr.repository}` : ''}
-            {pr.number ? `#${pr.number} · ` : pr.provider_pr_id ? `#${pr.provider_pr_id} · ` : ' · '}
-            opened {timeAgo(pr.created_at)}
-            {pr.incident_id && (
-              <>
-                {' · '}
-                <Link to={`/dashboard/incidents/${pr.incident_id}`} className="hover:text-[var(--acid)]">
-                  incident
-                </Link>
-              </>
-            )}
+const inView = (pr: PRDetail, view: View) => !VIEWS[view].statuses || VIEWS[view].statuses!.includes(pr.status);
+
+export default function PRsPage() {
+  const { id } = useParams<{ id: string }>();
+  const [params, setParams] = useSearchParams();
+  const { data: prs = [], isLoading, error, refetch } = usePRs();
+  const { data: stats } = usePRStats();
+  const drafts = prs.filter((p) => p.status === 'draft').length;
+  const requested = params.get('view') as View | null;
+  // Land on what needs review when there is any.
+  const view: View = requested && requested in VIEWS ? requested : drafts > 0 ? 'review' : 'all';
+  const query = params.get('q') ?? '';
+
+  const setParam = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    setParams(next, { replace: true });
+  };
+
+  const visible = useMemo(() => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return [...prs]
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      .filter((p) => inView(p, view) && words.every((w) =>
+        `${p.title} ${p.repository ?? ''} ${p.branch ?? ''} ${p.number ?? ''}`.toLowerCase().includes(w)));
+  }, [prs, view, query]);
+
+  const search = params.toString() ? `?${params}` : '';
+
+  const list = (
+    <>
+      <ListPaneHeader>
+        {stats && (
+          <p className="text-xs text-muted px-0.5">
+            <span className="text-ink font-medium">{stats.merged_prs}</span> of {stats.total_prs} merged
+            {stats.average_merge_time_minutes > 0 && <> · avg merge <span className="text-ink font-medium">{formatMinutes(stats.average_merge_time_minutes)}</span></>}
           </p>
-        </div>
-        {showCi && <CiStatus prId={pr.id} />}
-        <StatusBadge status={pr.status} />
-        {pr.fix_job_id && (
-          <button onClick={() => setShowDiff(!showDiff)} aria-label="Show diff" className="text-[var(--muted)] hover:text-[var(--acid)]">
-            <FileDiff className="w-4 h-4" />
-          </button>
         )}
-        {pr.url && (
-          <a href={pr.url} target="_blank" rel="noreferrer" aria-label="Open on GitHub" className="text-[var(--muted)] hover:text-[var(--acid)]">
-            <ExternalLink className="w-4 h-4" />
-          </a>
+        <SearchInput value={query} onChange={(v) => setParam('q', v)} placeholder="Filter by title, repo, branch…" />
+        <FilterTabs
+          label="Pull request status"
+          value={view}
+          onChange={(v) => setParam('view', v)}
+          options={(Object.keys(VIEWS) as View[]).map((v) => ({ value: v, label: VIEWS[v].label, count: prs.filter((p) => inView(p, v)).length }))}
+        />
+      </ListPaneHeader>
+      <div className="flex-1 min-h-0 overflow-y-auto scroll-thin">
+        {isLoading ? (
+          <ListSkeleton />
+        ) : error ? (
+          <ErrorState error={error} onRetry={() => refetch()} />
+        ) : visible.length === 0 ? (
+          prs.length === 0
+            ? <EmptyState icon={GitPullRequest} title="No pull requests yet" hint="When a fix passes verification, its draft PR shows up here for review." />
+            : <EmptyState icon={CheckCircle2} title={view === 'review' && !query ? 'Nothing to review' : 'No matches'}
+                hint={view === 'review' && !query ? 'Every proposed fix has been reviewed.' : 'Try another filter.'} />
+        ) : (
+          <ul className="divide-y divide-line">
+            {visible.map((pr) => <PRRow key={pr.id} pr={pr} selected={pr.id === id} search={search} />)}
+          </ul>
         )}
       </div>
+    </>
+  );
 
-      {pr.status === 'draft' && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-[var(--muted-strong)] font-[var(--sans)]">
-            Review the diff, then approve to mark it ready for review on GitHub, or reject to close it.
-          </span>
-          <button
-            onClick={() => approve.mutate(pr.id)}
-            disabled={approve.isPending}
-            className={`${btn} bg-[var(--acid)] text-[#091006] hover:bg-[#d1ff99]`}
-          >
-            <Check className="w-3.5 h-3.5" /> Approve
-          </button>
-          <button
-            onClick={() => setRejecting(!rejecting)}
-            className={`${btn} border border-[var(--line)] text-[var(--muted-strong)] hover:text-[var(--danger)] hover:border-[var(--danger)]/40`}
-          >
-            <X className="w-3.5 h-3.5" /> Reject
-          </button>
+  return (
+    <SplitView
+      hasSelection={Boolean(id)}
+      list={list}
+      detail={id
+        ? <PRDetailPane key={id} id={id} backTo={`/dashboard/prs${search}`} />
+        : <EmptyState className="h-full justify-center" icon={MousePointerClick} title="Select a pull request" hint="Review its diff and approve or reject it here." />}
+    />
+  );
+}
+
+function PRRow({ pr, selected, search }: { pr: PRDetail; selected: boolean; search: string }) {
+  const { icon: Icon, cls } = PR_ICON[pr.status] ?? PR_ICON.open;
+  return (
+    <li>
+      <Link
+        to={{ pathname: `/dashboard/prs/${pr.id}`, search }}
+        aria-current={selected ? 'true' : undefined}
+        className={cn('relative flex gap-3 px-4 py-3 transition-colors', selected ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]')}
+      >
+        {selected && <span className="absolute left-0 inset-y-0 w-[3px] bg-acid" aria-hidden />}
+        <Icon className={cn('w-4 h-4 mt-0.5 shrink-0', cls)} aria-label={pr.status} />
+        <div className="flex-1 min-w-0">
+          <p className={cn('text-sm leading-snug line-clamp-2', selected ? 'text-ink font-medium' : 'text-muted-strong')}>{pr.title}</p>
+          <p className="mt-1 text-xs text-muted font-mono truncate">
+            {[pr.repository, pr.number ? `#${pr.number}` : null].filter(Boolean).join(' ') || 'pull request'} · {timeAgo(pr.updated_at)}
+          </p>
         </div>
-      )}
-      {rejecting && (
-        <div className="flex gap-2">
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Why is this fix wrong? (shared on the PR and kept as feedback)"
-            className="flex-1 bg-[var(--surface-raised)] border border-[var(--line)] rounded-lg px-3 py-2 text-sm text-[var(--ink)]"
-          />
-          <button
-            onClick={() => reject.mutate({ id: pr.id, reason }, { onSuccess: () => setRejecting(false) })}
-            disabled={reason.trim().length < 3 || reject.isPending}
-            className={`${btn} border border-[var(--danger)]/40 text-[var(--danger)]`}
-          >
-            Close PR
-          </button>
-        </div>
-      )}
-      {pr.rejection_reason && (
-        <p className="text-xs text-[var(--muted-strong)] font-[var(--sans)]">Rejected: {pr.rejection_reason}</p>
-      )}
-      {error && <p className="text-xs text-[var(--danger)]">{(error as Error).message}</p>}
-      {showDiff && (diffLoading ? <p className="text-xs text-[var(--muted)]">Loading diff…</p> : diff && <DiffViewer diff={diff} />)}
+        <StatusBadge status={pr.status} className="mt-0.5 shrink-0" />
+      </Link>
     </li>
   );
 }
 
-export default function PRsPage() {
-  const { data: prs = [], isLoading, error, refetch } = usePRs();
-  const { data: stats } = usePRStats();
-  const [showCi, setShowCi] = useState(false);
-  const awaiting = prs.filter((p) => p.status === 'draft').length;
+function PRDetailPane({ id, backTo }: { id: string; backTo: string }) {
+  const { data: pr, isLoading, error, refetch } = usePR(id);
+  const { data: diff, isLoading: diffLoading, error: diffError } = usePRDiff(id, Boolean(pr?.fix_job_id));
+
+  if (isLoading) return <div className="max-w-4xl mx-auto p-6 space-y-3"><Skeleton className="h-6 w-2/3" /><Skeleton className="h-40" /></div>;
+  if (error || !pr) return <ErrorState error={error ?? new Error('Pull request not found')} onRetry={() => refetch()} className="mt-10" />;
 
   return (
-    <div className="max-w-[1200px] mx-auto py-8">
-      <PageHeader
-        title="Pull Requests"
-        description={
-          stats
-            ? `${awaiting} awaiting review · ${stats.merged_prs} of ${stats.total_prs} merged · avg merge time ${formatMinutes(stats.average_merge_time_minutes)}`
-            : 'Pull requests opened by Trace2PR'
-        }
-        actions={
-          <label className="flex items-center gap-2 text-sm text-[var(--muted-strong)] font-[var(--sans)]">
-            <input type="checkbox" checked={showCi} onChange={(e) => setShowCi(e.target.checked)} />
-            Show CI status
-          </label>
-        }
-      />
+    <article className="max-w-4xl mx-auto px-4 sm:px-6 py-5 space-y-4" aria-labelledby="pr-title">
+      <Link to={backTo} className="lg:hidden inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+        <ArrowLeft className="w-4 h-4" /> Pull requests
+      </Link>
 
-      <div className="bg-[var(--surface)] border border-[var(--line)] rounded-xl overflow-hidden">
-        {isLoading ? (
-          <LoadingState label="Loading pull requests…" />
-        ) : error ? (
-          <ErrorState error={error} onRetry={() => refetch()} />
-        ) : prs.length === 0 ? (
-          <EmptyState title="No pull requests yet" hint="PRs appear here once a fix is proposed." />
-        ) : (
-          <ul className="divide-y divide-[var(--line)]">
-            {prs.map((pr) => (
-              <PRRow key={pr.id} pr={pr} showCi={showCi} />
-            ))}
-          </ul>
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={pr.status} />
+          <CiBadge prId={pr.id} />
+        </div>
+        <h1 id="pr-title" className="text-lg sm:text-xl font-semibold text-ink leading-snug break-words">{pr.title}</h1>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted font-mono">
+          {pr.repository && <span>{pr.repository}{pr.number ? ` #${pr.number}` : ''}</span>}
+          {pr.branch && <span className="inline-flex items-center gap-1"><GitBranch className="w-3 h-3" /> {pr.branch}</span>}
+          <span>opened {timeAgo(pr.created_at)}</span>
+          {pr.approved_at && <span>approved {timeAgo(pr.approved_at)}</span>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <PRReviewActions pr={pr} size="md" />
+          {pr.url && (
+            <a href={pr.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'secondary', size: 'md' })}>
+              <ExternalLink className="w-4 h-4" /> Open on GitHub
+            </a>
+          )}
+          {pr.incident_id && (
+            <Link to={`/dashboard/incidents/${pr.incident_id}`} className={buttonVariants({ variant: 'ghost', size: 'md' })}>
+              <ShieldAlert className="w-4 h-4" /> View incident
+            </Link>
+          )}
+        </div>
+        {pr.status === 'draft' && (
+          <p className="text-xs text-muted">Approving marks the PR ready for review on GitHub. Nothing is merged without your team.</p>
         )}
-      </div>
-    </div>
+      </header>
+
+      {pr.rejection_reason && (
+        <Card className="p-4 border-danger/25 bg-danger/[0.04] flex gap-2.5">
+          <XCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-strong"><span className="text-ink font-medium">Rejected: </span>{pr.rejection_reason}</p>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader title="Changes" description="The verified diff the fix agent produced." />
+        <div className="px-4 pb-4">
+          {!pr.fix_job_id ? (
+            <p className="text-sm text-muted">This PR wasn't produced by a fix job, so there's no diff here. Open it on GitHub.</p>
+          ) : diffLoading ? (
+            <LoadingState label="Loading diff…" className="py-8" />
+          ) : diffError ? (
+            <p className="text-sm text-danger">Couldn't load the diff: {(diffError as Error).message}</p>
+          ) : diff ? (
+            <DiffViewer diff={diff} />
+          ) : null}
+        </div>
+      </Card>
+    </article>
   );
+}
+
+function CiBadge({ prId }: { prId: string }) {
+  const { data, isLoading } = usePRCiStatus(prId);
+  if (isLoading) return <span className="text-xs text-muted inline-flex items-center gap-1"><CircleDot className="w-3 h-3 animate-pulse" /> CI…</span>;
+  if (!data) return null;
+  const title = data.checks.map((c) => `${c.name}: ${c.conclusion ?? c.status}`).join('\n') || undefined;
+  return <span title={title}><StatusBadge status={`ci ${data.state}`} /></span>;
 }

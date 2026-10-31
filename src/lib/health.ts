@@ -1,5 +1,11 @@
 import type { HealthCheckResult, HealthResponse, Integration } from '../api';
-import type { ServiceHealth, ServiceStatus } from '../components/dashboard/SystemHealth';
+
+export type ServiceStatus = 'connected' | 'error' | 'unconfigured';
+
+export interface ServiceHealth {
+  name: string;
+  status: ServiceStatus;
+}
 
 const INFRA_LABELS: Array<[keyof Omit<HealthResponse, 'status'>, string]> = [
   ['supabase', 'Supabase'],

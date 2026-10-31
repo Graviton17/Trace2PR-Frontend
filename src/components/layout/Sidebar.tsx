@@ -1,138 +1,118 @@
-import { NavLink, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { 
-  LayoutDashboard, 
-  ShieldAlert, 
-  Bell, 
-  GitPullRequest, 
-  Plug, 
-  Brain, 
-  TerminalSquare, 
-  Settings,
-  ChevronRight,
-  ChevronLeft,
-  Terminal
-} from 'lucide-react';
+import { useMemo } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import { PanelLeftClose, PanelLeftOpen, Waypoints } from 'lucide-react';
+import { useInbox, useIntegrations, useSystemHealth } from '../../hooks';
+import { buildServiceHealth } from '../../lib/health';
+import { NAV, SETTINGS_NAV, isNavActive, settingsPath, type NavItem } from '../../lib/nav';
 import { cn } from '../../lib/utils';
+import { CountBadge } from '../common/Badges';
 
 interface SidebarProps {
-  isCollapsed: boolean;
-  setIsCollapsed: (collapsed: boolean) => void;
-  isHovered: boolean;
-  setIsHovered: (hovered: boolean) => void;
+  collapsed: boolean;
+  onToggle?: () => void;
+  /** Called after navigating (closes the mobile drawer). */
+  onNavigate?: () => void;
 }
 
-const navItems = [
-  { name: 'Home', path: '/dashboard', icon: LayoutDashboard, exact: true },
-  { name: 'Incidents', path: '/dashboard/incidents', icon: ShieldAlert, badge: 3 },
-  { name: 'Alerts', path: '/dashboard/alerts', icon: Bell },
-  { name: 'Pull Requests', path: '/dashboard/prs', icon: GitPullRequest, badge: 2 },
-  { name: 'Integrations', path: '/dashboard/integrations', icon: Plug },
-  { name: 'Knowledge', path: '/dashboard/knowledge', icon: Brain },
-  { name: 'Sandbox', path: '/dashboard/sandbox', icon: TerminalSquare },
-];
-
-export default function Sidebar({ isCollapsed, setIsCollapsed, isHovered, setIsHovered }: SidebarProps) {
-  const location = useLocation();
-  const expanded = !isCollapsed || isHovered;
-
-  const isActive = (path: string, exact: boolean = false) => {
-    if (exact) {
-      return location.pathname === path;
-    }
-    return location.pathname.startsWith(path);
+export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
+  const { pathname } = useLocation();
+  const inbox = useInbox();
+  const counts: Partial<Record<NavItem['id'], { count: number; tone: 'attention' | 'neutral' }>> = {
+    inbox: { count: inbox.items.length, tone: 'attention' },
+    incidents: { count: inbox.activeCount, tone: 'neutral' },
+    prs: { count: inbox.reviewCount, tone: 'attention' },
   };
 
   return (
-    <motion.aside
-      initial={false}
-      animate={{ width: expanded ? 240 : 72 }}
-      className="fixed left-0 top-0 h-screen bg-[var(--surface)] border-r border-[var(--line)] flex flex-col z-20"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="h-14 flex items-center px-4 border-b border-[var(--line)] shrink-0">
-        <div className="w-10 h-10 rounded-xl bg-[var(--acid)]/10 flex items-center justify-center shrink-0">
-          <Terminal className="w-5 h-5 text-[var(--acid)]" />
-        </div>
-        <motion.span 
-          initial={false}
-          animate={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0 }}
-          className="ml-3 font-semibold text-[var(--ink)] font-[var(--sans)] whitespace-nowrap overflow-hidden"
-        >
-          Trace2PR
-        </motion.span>
+    <div className="flex flex-col h-full bg-surface border-r border-line">
+      <div className={cn('h-14 flex items-center shrink-0 border-b border-line', collapsed ? 'justify-center' : 'px-4')}>
+        <Link to="/dashboard" onClick={onNavigate} className="flex items-center gap-2.5 rounded-lg" aria-label="Trace2PR inbox">
+          <span className="w-8 h-8 rounded-lg border border-acid/30 bg-acid/10 flex items-center justify-center text-acid shrink-0">
+            <Waypoints className="w-4 h-4" strokeWidth={2.25} />
+          </span>
+          {!collapsed && (
+            <span className="text-[15px] font-bold tracking-tight">Trace<span className="text-acid">2</span>PR</span>
+          )}
+        </Link>
       </div>
 
-      <nav className="flex-1 py-4 flex flex-col gap-1 overflow-y-auto overflow-x-hidden px-2">
-        {navItems.map((item) => {
-          const active = isActive(item.path, item.exact);
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={cn(
-                "flex items-center h-10 px-2.5 rounded-lg transition-colors relative group whitespace-nowrap shrink-0",
-                active 
-                  ? "bg-[var(--acid)]/10 text-[var(--acid)]" 
-                  : "text-[var(--muted)] hover:text-[var(--muted-strong)] hover:bg-white/5"
-              )}
-            >
-              {active && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[var(--acid)] rounded-r-full" />
-              )}
-              <item.icon className={cn("w-5 h-5 shrink-0 ml-1.5", active ? "text-[var(--acid)]" : "text-[var(--muted)] group-hover:text-[var(--muted-strong)]")} />
-              
-              <motion.span
-                initial={false}
-                animate={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0 }}
-                className="ml-3 font-medium font-[var(--sans)] text-sm flex-1 overflow-hidden"
-              >
-                {item.name}
-              </motion.span>
-
-              {item.badge && expanded && (
-                <span className="ml-auto w-5 h-5 rounded-full bg-[var(--danger)]/20 text-[var(--danger)] text-xs font-bold flex items-center justify-center font-[var(--mono)] shrink-0">
-                  {item.badge}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
-
-        <div className="my-2 border-t border-[var(--line)] mx-2 shrink-0" />
-
-        <NavLink
-          to="/dashboard/settings"
-          className={cn(
-            "flex items-center h-10 px-2.5 rounded-lg transition-colors relative group whitespace-nowrap shrink-0",
-            isActive('/dashboard/settings')
-              ? "bg-[var(--acid)]/10 text-[var(--acid)]" 
-              : "text-[var(--muted)] hover:text-[var(--muted-strong)] hover:bg-white/5"
-          )}
-        >
-          {isActive('/dashboard/settings') && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[var(--acid)] rounded-r-full" />
-          )}
-          <Settings className={cn("w-5 h-5 shrink-0 ml-1.5", isActive('/dashboard/settings') ? "text-[var(--acid)]" : "text-[var(--muted)] group-hover:text-[var(--muted-strong)]")} />
-          <motion.span
-            initial={false}
-            animate={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0 }}
-            className="ml-3 font-medium font-[var(--sans)] text-sm overflow-hidden"
-          >
-            Settings
-          </motion.span>
-        </NavLink>
+      <nav className="flex-1 overflow-y-auto scroll-thin px-2 py-3 space-y-0.5" aria-label="Main">
+        {NAV.map((item) => (
+          <SidebarLink key={item.id} item={item} active={isNavActive(item, pathname)} collapsed={collapsed}
+            badge={counts[item.id]} onNavigate={onNavigate} />
+        ))}
       </nav>
 
-      <div className="p-3 border-t border-[var(--line)] shrink-0 flex justify-center">
-        <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
-        >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
+      <div className="px-2 py-3 border-t border-line space-y-0.5 shrink-0">
+        <SidebarLink item={SETTINGS_NAV} active={isNavActive(SETTINGS_NAV, pathname)} collapsed={collapsed} onNavigate={onNavigate} />
+        <HealthLink collapsed={collapsed} onNavigate={onNavigate} />
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            className={cn('w-full flex items-center gap-3 h-9 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-colors', collapsed ? 'justify-center' : 'px-2.5')}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : undefined}
+          >
+            {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /> Collapse</>}
+          </button>
+        )}
       </div>
-    </motion.aside>
+    </div>
+  );
+}
+
+function SidebarLink({ item, active, collapsed, badge, onNavigate }: {
+  item: NavItem; active: boolean; collapsed: boolean;
+  badge?: { count: number; tone: 'attention' | 'neutral' }; onNavigate?: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <NavLink
+      to={item.path}
+      end={item.exact}
+      onClick={onNavigate}
+      title={collapsed ? item.name : undefined}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'relative flex items-center gap-3 h-9 rounded-lg text-sm font-medium transition-colors',
+        collapsed ? 'justify-center' : 'px-2.5',
+        active ? 'bg-white/[0.07] text-ink' : 'text-muted hover:text-ink hover:bg-white/[0.04]',
+      )}
+    >
+      {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-acid" aria-hidden />}
+      <Icon className={cn('w-4 h-4 shrink-0', active && 'text-acid')} aria-hidden />
+      {!collapsed && <span className="flex-1 truncate">{item.name}</span>}
+      {badge && badge.count > 0 && (
+        collapsed
+          ? <span className={cn('absolute top-1.5 right-2 w-2 h-2 rounded-full', badge.tone === 'attention' ? 'bg-acid' : 'bg-muted')} aria-label={`${badge.count} items`} />
+          : <CountBadge count={badge.count} tone={badge.tone} />
+      )}
+    </NavLink>
+  );
+}
+
+/** One-line system status; details live in Settings → Integrations. */
+function HealthLink({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { data: health } = useSystemHealth();
+  const { data: integrations } = useIntegrations();
+  const services = useMemo(() => buildServiceHealth(health, integrations), [health, integrations]);
+  if (services.length === 0) return null;
+  const broken = services.filter((s) => s.status === 'error');
+  const label = broken.length ? `${broken.length} service${broken.length > 1 ? 's' : ''} down` : 'All systems normal';
+  const detail = services.map((s) => `${s.name}: ${s.status === 'connected' ? 'ok' : s.status}`).join('\n');
+
+  return (
+    <Link
+      to={settingsPath('integrations')}
+      onClick={onNavigate}
+      title={`${label}\n\n${detail}`}
+      className={cn('flex items-center gap-3 h-9 rounded-lg text-xs text-muted hover:text-ink hover:bg-white/[0.04] transition-colors', collapsed ? 'justify-center' : 'px-2.5')}
+    >
+      <span className={cn('relative flex w-2 h-2 mx-1 shrink-0')}>
+        {broken.length > 0 && <span className="absolute inset-0 rounded-full bg-danger animate-ping opacity-60" />}
+        <span className={cn('relative w-2 h-2 rounded-full', broken.length ? 'bg-danger' : 'bg-acid')} />
+      </span>
+      {!collapsed && <span className={cn('truncate', broken.length > 0 && 'text-danger')}>{label}</span>}
+    </Link>
   );
 }

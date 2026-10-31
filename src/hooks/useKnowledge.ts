@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { knowledgeApi } from '../api';
 
-export const knowledgeKeys = {
+const knowledgeKeys = {
   all: ['knowledge'] as const,
   incidents: () => ['knowledge', 'incidents'] as const,
   fixes: () => ['knowledge', 'fixes'] as const,

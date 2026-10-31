@@ -440,19 +440,6 @@ export interface HealthResponse {
 
 // ---- webhooks.py ----
 
-export interface WebhookLog {
-  id: string;
-  user_id: string | null;
-  integration_id: string | null;
-  source: string;
-  event_type: string | null;
-  payload: Record<string, unknown>;
-  headers: Record<string, unknown>;
-  processed: boolean;
-  error: string | null;
-  created_at: string;
-}
-
 // =============================================
 // Repo mappings
 // =============================================

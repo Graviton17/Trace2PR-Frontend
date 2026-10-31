@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { sdkKeysApi } from '../api/sdkKeys';
+import { sdkKeysApi } from '../api';
 
 const keys = { all: ['sdk-keys'] as const };
 

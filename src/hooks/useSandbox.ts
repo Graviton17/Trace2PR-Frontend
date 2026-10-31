@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sandboxApi } from '../api';
 import type { CreateSandboxRequest, ExecRequest } from '../api';
 
-export const sandboxKeys = {
+const sandboxKeys = {
   all: ['sandbox'] as const,
   instances: () => ['sandbox', 'instances'] as const,
   instance: (id: string) => ['sandbox', 'instance', id] as const,
@@ -15,28 +15,8 @@ export function useSandboxInstances() {
   return useQuery({ queryKey: sandboxKeys.instances(), queryFn: sandboxApi.listInstances });
 }
 
-export function useSandboxInstance(id: string | undefined) {
-  return useQuery({
-    queryKey: sandboxKeys.instance(id ?? ''),
-    queryFn: () => sandboxApi.getInstance(id as string),
-    enabled: !!id,
-  });
-}
-
-export function useSandboxLogs(id: string | undefined) {
-  return useQuery({
-    queryKey: sandboxKeys.logs(id ?? ''),
-    queryFn: () => sandboxApi.getInstanceLogs(id as string),
-    enabled: !!id,
-  });
-}
-
 export function useSandboxTemplates() {
   return useQuery({ queryKey: sandboxKeys.templates(), queryFn: sandboxApi.listTemplates });
-}
-
-export function useSandboxUsage() {
-  return useQuery({ queryKey: sandboxKeys.usage(), queryFn: sandboxApi.getUsage, refetchInterval: 15_000 });
 }
 
 export function useCreateSandbox() {

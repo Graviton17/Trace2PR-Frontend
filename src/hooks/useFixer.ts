@@ -1,16 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { analysisApi, fixerApi } from '../api';
 
-export const fixerKeys = {
+const fixerKeys = {
   all: ['fixer'] as const,
   list: () => ['fixer', 'list'] as const,
   detail: (id: string) => ['fixer', 'detail', id] as const,
   transcript: (id: string) => ['fixer', 'transcript', id] as const,
 };
-
-export function useFixJobs() {
-  return useQuery({ queryKey: fixerKeys.list(), queryFn: fixerApi.listJobs });
-}
 
 const ACTIVE_FIX_STATUSES = new Set([
   'queued', 'sandbox_creating', 'cloning', 'analyzing', 'fixing', 'testing', 'pr_creating',
@@ -61,29 +57,17 @@ export function useRetryFixJob() {
   });
 }
 
-export const analysisKeys = {
+const analysisKeys = {
   all: ['analysis'] as const,
   reports: () => ['analysis', 'reports'] as const,
   report: (id: string) => ['analysis', 'report', id] as const,
   job: (id: string) => ['analysis', 'job', id] as const,
 };
 
-export function useAnalysisReports() {
-  return useQuery({ queryKey: analysisKeys.reports(), queryFn: analysisApi.listReports });
-}
-
 export function useAnalysisReport(id: string | undefined) {
   return useQuery({
     queryKey: analysisKeys.report(id ?? ''),
     queryFn: () => analysisApi.getReport(id as string),
-    enabled: !!id,
-  });
-}
-
-export function useAnalysisJob(id: string | undefined) {
-  return useQuery({
-    queryKey: analysisKeys.job(id ?? ''),
-    queryFn: () => analysisApi.getJob(id as string),
     enabled: !!id,
   });
 }

@@ -13,6 +13,7 @@ export function timeAgo(iso: string, now: number = Date.now()): string {
 export function formatMinutes(totalMinutes: number): string {
   if (!totalMinutes || totalMinutes <= 0) return '—';
   const rounded = Math.round(totalMinutes);
+  if (rounded < 1) return '<1m';
   if (rounded < 60) return `${rounded}m`;
   const h = Math.floor(rounded / 60);
   const m = rounded % 60;

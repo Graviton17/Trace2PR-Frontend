@@ -1,17 +1,12 @@
 import { useState } from 'react';
-import { Search, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { BookOpen, Search, ThumbsDown, ThumbsUp, Wrench, X } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '../components/common/StateViews';
-import {
-  useKnowledgeSearch,
-  useKnowledgeStats,
-  usePastFixes,
-  usePastIncidents,
-  useSubmitKnowledgeFeedback,
-} from '../hooks';
+import { EmptyState, ErrorState, ListSkeleton } from '../components/common/StateViews';
+import { Button } from '../components/ui/button';
+import { Card, CardHeader } from '../components/ui/card';
+import { errorMessage, useFeedback } from '../components/ui/feedback';
+import { useKnowledgeSearch, useKnowledgeStats, usePastFixes, usePastIncidents, useSubmitKnowledgeFeedback } from '../hooks';
 import { timeAgo } from '../lib/time';
-
-const card = 'bg-[var(--surface)] border border-[var(--line)] rounded-xl p-4';
 
 interface ItemProps {
   id: string;
@@ -19,24 +14,39 @@ interface ItemProps {
   title: string;
   body: string;
   createdAt: string;
-  onFeedback: (id: string, type: string, helpful: boolean) => void;
+  score: number | null;
 }
 
-function KnowledgeItem({ id, type, title, body, createdAt, onFeedback }: ItemProps) {
+function KnowledgeItem({ id, type, title, body, createdAt, score }: ItemProps) {
+  const feedback = useSubmitKnowledgeFeedback();
+  const { toast } = useFeedback();
+  const [voted, setVoted] = useState<boolean | null>(null);
+
+  const vote = (helpful: boolean) => feedback.mutate({ itemId: id, itemType: type, helpful }, {
+    onSuccess: () => { setVoted(helpful); toast('Thanks, feedback saved.'); },
+    onError: (e) => toast(errorMessage(e), 'error'),
+  });
+
   return (
-    <li className={card}>
-      <div className="flex justify-between gap-4">
-        <p className="text-[var(--ink)] font-semibold text-sm font-[var(--sans)]">{title}</p>
-        <span className="text-[var(--muted)] text-xs font-[var(--mono)] whitespace-nowrap">{timeAgo(createdAt)}</span>
+    <li className="px-4 py-3.5">
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm font-medium text-ink leading-snug">{title}</p>
+        <span className="text-xs text-muted font-mono whitespace-nowrap">
+          {score != null && <span className="text-acid mr-2">{Math.round(score * 100)}% match</span>}
+          {timeAgo(createdAt)}
+        </span>
       </div>
-      <p className="text-[var(--muted-strong)] text-sm mt-2 line-clamp-3 font-[var(--sans)]">{body}</p>
-      <div className="flex gap-3 mt-3 text-[var(--muted)]">
-        <button aria-label="Helpful" onClick={() => onFeedback(id, type, true)} className="hover:text-[var(--acid)]">
-          <ThumbsUp className="w-4 h-4" />
-        </button>
-        <button aria-label="Not helpful" onClick={() => onFeedback(id, type, false)} className="hover:text-[var(--danger)]">
-          <ThumbsDown className="w-4 h-4" />
-        </button>
+      <p className="text-sm text-muted-strong mt-1.5 line-clamp-3 leading-relaxed whitespace-pre-wrap">{body}</p>
+      <div className="flex items-center gap-1 mt-2 -ml-2">
+        <span className="text-xs text-muted px-2">Helpful?</span>
+        <Button size="icon-sm" variant="ghost" aria-label="Helpful" aria-pressed={voted === true}
+          className={voted === true ? 'text-acid' : 'hover:text-acid'} onClick={() => vote(true)}>
+          <ThumbsUp className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="icon-sm" variant="ghost" aria-label="Not helpful" aria-pressed={voted === false}
+          className={voted === false ? 'text-danger' : 'hover:text-danger'} onClick={() => vote(false)}>
+          <ThumbsDown className="w-3.5 h-3.5" />
+        </Button>
       </div>
     </li>
   );
@@ -48,15 +58,12 @@ export default function KnowledgePage() {
   const fixes = usePastFixes();
   const { data: stats } = useKnowledgeStats();
   const search = useKnowledgeSearch();
-  const feedback = useSubmitKnowledgeFeedback();
-
-  const onFeedback = (itemId: string, itemType: string, helpful: boolean) =>
-    feedback.mutate({ itemId, itemType, helpful });
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) search.mutate({ query: query.trim(), limit: 10 });
   };
+  const clear = () => { setQuery(''); search.reset(); };
 
   const searching = search.data !== undefined;
   const incidentItems = searching ? search.data.incidents : incidents.data ?? [];
@@ -65,65 +72,67 @@ export default function KnowledgePage() {
   const error = incidents.error ?? fixes.error;
 
   return (
-    <div className="max-w-[1200px] mx-auto py-8">
+    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6">
       <PageHeader
-        title="Knowledge Base"
-        description={
-          stats
-            ? `${stats.total_incidents_indexed} incidents and ${stats.total_fixes_indexed} fixes indexed`
-            : 'Past incidents and fixes'
-        }
+        title="Knowledge"
+        description={stats
+          ? `What Trace2PR learned from ${stats.total_incidents_indexed} resolved incidents and ${stats.total_fixes_indexed} merged fixes. Future fixes use it.`
+          : 'Past incidents and fixes that inform future fixes.'}
       />
 
-      <form onSubmit={submitSearch} className="flex gap-2 mb-6">
+      <form onSubmit={submitSearch} className="flex gap-2 mb-5" role="search">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
           <input
             value={query}
             onChange={(e) => { setQuery(e.target.value); if (!e.target.value) search.reset(); }}
-            placeholder="Search past incidents and fixes"
-            className="w-full bg-[var(--surface-raised)] border border-[var(--line)] rounded-lg pl-9 pr-3 py-2 text-sm text-[var(--ink)]"
+            placeholder="Describe an error, e.g. “KeyError on cart summary”"
+            aria-label="Search past incidents and fixes"
+            className="w-full h-10 rounded-lg border border-line bg-surface pl-9 pr-9 text-sm text-ink placeholder:text-muted/70 outline-none focus-visible:outline-none focus:border-acid/60 focus:ring-2 focus:ring-acid/15"
           />
+          {query && (
+            <button type="button" onClick={clear} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted hover:text-ink">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
-        <button
-          type="submit"
-          disabled={search.isPending}
-          className="px-4 py-2 rounded-lg bg-[var(--acid)] text-[#091006] text-sm font-bold disabled:opacity-50"
-        >
-          Search
-        </button>
+        <Button type="submit" variant="primary" size="lg" className="h-10" loading={search.isPending} disabled={!query.trim()}>Search</Button>
       </form>
 
-      {isLoading ? (
-        <LoadingState />
-      ) : error ? (
+      {searching && (
+        <p className="text-sm text-muted mb-4">
+          {incidentItems.length + fixItems.length} results for “{query}” · <button onClick={clear} className="text-acid hover:underline">show all</button>
+        </p>
+      )}
+
+      {error ? (
         <ErrorState error={error} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <section>
-            <h2 className="text-[var(--ink)] font-semibold mb-3 font-[var(--sans)]">Past incidents</h2>
-            {incidentItems.length === 0 ? (
-              <EmptyState title="Nothing here yet" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          <Card className="overflow-hidden">
+            <CardHeader title="Past incidents" icon={<BookOpen className="w-4 h-4" />} description="How each one was resolved" />
+            {isLoading ? <ListSkeleton rows={3} /> : incidentItems.length === 0 ? (
+              <EmptyState title={searching ? 'No matching incidents' : 'Nothing here yet'} hint={!searching ? 'Resolved incidents are added automatically.' : undefined} />
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y divide-line border-t border-line">
                 {incidentItems.map((i) => (
-                  <KnowledgeItem key={i.id} id={i.id} type="incidents" title={i.title} body={i.resolution_summary} createdAt={i.created_at} onFeedback={onFeedback} />
+                  <KnowledgeItem key={i.id} id={i.id} type="incidents" title={i.title} body={i.resolution_summary} createdAt={i.created_at} score={i.similarity_score} />
                 ))}
               </ul>
             )}
-          </section>
-          <section>
-            <h2 className="text-[var(--ink)] font-semibold mb-3 font-[var(--sans)]">Past fixes</h2>
-            {fixItems.length === 0 ? (
-              <EmptyState title="Nothing here yet" />
+          </Card>
+          <Card className="overflow-hidden">
+            <CardHeader title="Past fixes" icon={<Wrench className="w-4 h-4" />} description="Merged changes and what they touched" />
+            {isLoading ? <ListSkeleton rows={3} /> : fixItems.length === 0 ? (
+              <EmptyState title={searching ? 'No matching fixes' : 'Nothing here yet'} hint={!searching ? 'Merged fixes are added automatically.' : undefined} />
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y divide-line border-t border-line">
                 {fixItems.map((f) => (
-                  <KnowledgeItem key={f.id} id={f.id} type="fixes" title={f.description} body={f.diff_summary} createdAt={f.created_at} onFeedback={onFeedback} />
+                  <KnowledgeItem key={f.id} id={f.id} type="fixes" title={f.description} body={f.diff_summary} createdAt={f.created_at} score={f.similarity_score} />
                 ))}
               </ul>
             )}
-          </section>
+          </Card>
         </div>
       )}
     </div>

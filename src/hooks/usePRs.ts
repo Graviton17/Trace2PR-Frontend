@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { prsApi } from '../api';
 
-export const prKeys = {
+const prKeys = {
   all: ['prs'] as const,
   list: () => ['prs', 'list'] as const,
   stats: () => ['prs', 'stats'] as const,
@@ -11,7 +11,7 @@ export const prKeys = {
 };
 
 export function usePRs() {
-  return useQuery({ queryKey: prKeys.list(), queryFn: prsApi.list });
+  return useQuery({ queryKey: prKeys.list(), queryFn: prsApi.list, refetchInterval: 20_000 });
 }
 
 export function usePRStats() {
@@ -54,6 +54,10 @@ export function useRejectPR() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => prsApi.reject(id, reason),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: prKeys.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: prKeys.all });
+      // Rejecting reopens the incident.
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+    },
   });
 }

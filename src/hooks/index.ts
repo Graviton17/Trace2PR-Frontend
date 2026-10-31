@@ -9,3 +9,6 @@ export * from './useSettings';
 export * from './useRepoMappings';
 export * from './useHealth';
 export * from './useOnboarding';
+export * from './useInbox';
+export * from './useMetrics';
+export * from './useSdkKeys';

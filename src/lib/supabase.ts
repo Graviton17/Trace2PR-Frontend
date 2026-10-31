@@ -33,24 +33,10 @@ export const auth = {
     return { error };
   },
 
-  getSession: async () => {
-    const { data, error } = await supabase.auth.getSession();
-    return { data, error };
-  },
-
-  getUser: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    return { data, error };
-  },
-
   refreshSession: async () => {
     // No args: supabase-js refreshes using the session it already has
     // persisted, so callers don't need to thread a refresh_token through.
     const { data, error } = await supabase.auth.refreshSession();
     return { data, error };
-  },
-
-  onAuthStateChange: (callback: Parameters<typeof supabase.auth.onAuthStateChange>[0]) => {
-    return supabase.auth.onAuthStateChange(callback);
   },
 };

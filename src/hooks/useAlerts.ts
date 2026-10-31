@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { alertsApi } from '../api';
 import type { AlertListParams } from '../api';
 
-export const alertKeys = {
+const alertKeys = {
   all: ['alerts'] as const,
   list: (params?: AlertListParams) => ['alerts', 'list', params] as const,
   stats: (since?: string) => ['alerts', 'stats', since] as const,

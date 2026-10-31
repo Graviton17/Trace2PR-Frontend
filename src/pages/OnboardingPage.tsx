@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Activity, ArrowRight, Check, CheckCircle2, Cloud, Copy, ExternalLink, GitBranch,
-  Loader2, LogOut, Search, ShieldAlert, XCircle,
+  Activity, ArrowRight, Check, CheckCircle2, Cloud, ExternalLink, GitBranch,
+  Loader2, LogOut, Search, ShieldAlert, Waypoints, XCircle,
 } from 'lucide-react';
 import { integrationsApi, repoMappingsApi } from '../api';
 import type { GitHubRepo } from '../api';
@@ -11,6 +11,8 @@ import { useAuth } from '../context/AuthContext';
 import { onboardingKeys, useGitHubRepos, useOnboarding } from '../hooks';
 import { SERVICE_KEY_HELP, WEBHOOK_HELP } from '../lib/integrations';
 import { cn } from '../lib/utils';
+import { CopyField } from '../components/common/Controls';
+import { buttonVariants } from '../components/ui/button';
 
 type StepId = 'github' | 'repos' | 'monitoring' | 'done';
 
@@ -27,11 +29,9 @@ const MONITORING_TOOLS = [
   { id: 'cloudwatch', name: 'AWS CloudWatch', icon: Cloud, description: 'Alarms and Logs Insights' },
 ];
 
-const panel = 'bg-[var(--surface)] border border-[var(--line)] rounded-2xl p-6 sm:p-8';
-const primary =
-  'inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--acid)] text-[#091006] hover:bg-[#d1ff99] transition-colors font-semibold text-sm font-[var(--sans)] disabled:opacity-50 disabled:cursor-not-allowed';
-const secondary =
-  'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-[var(--line)] text-[var(--muted-strong)] hover:bg-white/5 hover:text-[var(--ink)] transition-colors font-semibold text-sm font-[var(--sans)] disabled:opacity-50';
+const panel = 'bg-surface border border-line rounded-2xl p-6 sm:p-8 animate-fade-in';
+const primary = buttonVariants({ variant: 'primary', size: 'lg' });
+const secondary = buttonVariants({ variant: 'secondary', size: 'md' });
 
 /** Query params Composio adds when it sends the user back from a Connect Link. */
 function readConnectReturn() {
@@ -85,6 +85,7 @@ export default function OnboardingPage() {
   const firstOpen: StepId = !steps ? 'github' : !steps.github ? 'github' : !steps.repos ? 'repos' : !steps.monitoring ? 'monitoring' : 'done';
   const current = chosen ?? firstOpen;
   const done = (id: StepId) => (id === 'done' ? Boolean(status?.completed) : Boolean(steps?.[id]));
+  const doneCount = (['github', 'repos', 'monitoring'] as const).filter((id) => steps?.[id]).length;
   const reachable = (id: StepId) => {
     const order = STEPS.findIndex((s) => s.id === id);
     return STEPS.slice(0, order).every((s) => done(s.id));
@@ -112,15 +113,18 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--page)] text-[var(--ink)]">
-      <header className="flex items-center justify-between px-4 sm:px-8 h-16 border-b border-[var(--line)]">
-        <div className="font-semibold font-[var(--sans)]">
-          Trace<span className="text-[var(--acid)]">2</span>PR
-          <span className="ml-3 text-xs text-[var(--muted)] font-[var(--mono)] uppercase tracking-wider">Setup</span>
+    <div className="min-h-dvh bg-page text-ink">
+      <header className="flex items-center justify-between px-4 sm:px-8 h-16 border-b border-line">
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-lg border border-acid/30 bg-acid/10 flex items-center justify-center text-acid">
+            <Waypoints className="w-4 h-4" strokeWidth={2.25} />
+          </span>
+          <span className="font-bold tracking-tight">Trace<span className="text-acid">2</span>PR</span>
+          <span className="ml-1 text-xs text-muted border border-line rounded-md px-1.5 py-0.5">Setup</span>
         </div>
-        <div className="flex items-center gap-4 text-sm text-[var(--muted)] font-[var(--sans)]">
+        <div className="flex items-center gap-4 text-sm text-muted">
           <span className="hidden sm:inline truncate max-w-[220px]">{user?.email}</span>
-          <button onClick={() => signOut()} className="inline-flex items-center gap-1.5 hover:text-[var(--ink)]">
+          <button onClick={() => signOut()} className="inline-flex items-center gap-1.5 hover:text-ink">
             <LogOut className="w-4 h-4" /> Sign out
           </button>
         </div>
@@ -128,20 +132,22 @@ export default function OnboardingPage() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-8 py-10">
         <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold font-[var(--sans)]">Set up Trace2PR</h1>
-          <p className="text-[var(--muted)] mt-2 font-[var(--sans)] max-w-2xl">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Set up Trace2PR</h1>
+          <p className="text-muted mt-2 max-w-2xl">
             Connect where your code lives and where your errors are reported. When an error happens,
             Trace2PR reproduces it, fixes it in a sandbox, and opens a pull request for you to review.
           </p>
-          {status && !status.completed && (
-            <p className="text-[var(--muted-strong)] text-sm mt-3 font-[var(--sans)]">
-              Finish these steps to open the dashboard.
-            </p>
-          )}
+          <div className="mt-5 flex items-center gap-3 max-w-md">
+            <div className="flex-1 h-1.5 rounded-full bg-white/[0.07] overflow-hidden" role="progressbar"
+              aria-label="Setup progress" aria-valuemin={0} aria-valuemax={3} aria-valuenow={doneCount}>
+              <div className="h-full rounded-full bg-acid transition-[width] duration-500" style={{ width: `${(doneCount / 3) * 100}%` }} />
+            </div>
+            <span className="text-xs text-muted font-mono">{doneCount}/3 done</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 md:gap-10">
-          <ol className="flex md:flex-col gap-2 overflow-x-auto md:overflow-visible">
+          <ol className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
             {STEPS.map((step, i) => {
               const isDone = done(step.id);
               const isCurrent = current === step.id;
@@ -150,21 +156,22 @@ export default function OnboardingPage() {
                   <button
                     onClick={() => go(step.id)}
                     disabled={!reachable(step.id)}
+                    aria-current={isCurrent ? 'step' : undefined}
                     className={cn(
                       'flex items-center gap-3 w-full text-left rounded-lg px-3 py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
-                      isCurrent ? 'bg-[var(--acid)]/10' : 'hover:bg-white/5',
+                      isCurrent ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]',
                     )}
                   >
                     <span className={cn(
-                      'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-[var(--mono)] border shrink-0',
-                      isDone ? 'bg-[var(--acid)] border-[var(--acid)] text-[#091006]'
-                        : isCurrent ? 'border-[var(--acid)] text-[var(--acid)]' : 'border-[var(--line-strong)] text-[var(--muted)]',
+                      'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-mono border shrink-0',
+                      isDone ? 'bg-acid border-acid text-on-acid'
+                        : isCurrent ? 'border-acid text-acid' : 'border-line-strong text-muted',
                     )}>
                       {isDone ? <Check className="w-4 h-4" /> : i + 1}
                     </span>
                     <span className="hidden sm:block">
-                      <span className="block text-sm font-semibold font-[var(--sans)]">{step.title}</span>
-                      <span className="block text-xs text-[var(--muted)] font-[var(--sans)]">{step.hint}</span>
+                      <span className="block text-sm font-semibold">{step.title}</span>
+                      <span className="block text-xs text-muted">{step.hint}</span>
                     </span>
                   </button>
                 </li>
@@ -428,22 +435,12 @@ function MonitoringStep({ connected, connecting, onConnect, onNext }: {
 }
 
 function WebhookSetup({ service, url }: { service: string; url: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => navigator.clipboard.writeText(url).then(() => {
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  });
   return (
-    <div className="mt-4 pl-8">
-      <p className="text-xs text-[var(--muted-strong)] font-[var(--sans)] mb-2">{WEBHOOK_HELP[service]}</p>
-      <div className="flex items-center gap-2 bg-[var(--page-deep)] border border-[var(--line)] rounded-lg p-2.5">
-        <code className="flex-1 text-xs font-[var(--mono)] break-all text-[var(--ink)]">{url}</code>
-        <button onClick={copy} className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-[var(--acid)] hover:bg-[var(--acid)]/10">
-          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
+    <div className="mt-4 pl-8 space-y-2">
+      <p className="text-xs text-muted-strong">{WEBHOOK_HELP[service]}</p>
+      <CopyField value={url} />
       {SERVICE_KEY_HELP[service] && (
-        <p className="text-xs text-[var(--muted)] font-[var(--sans)] mt-2">
+        <p className="text-xs text-muted">
           Errors are matched to repositories by {SERVICE_KEY_HELP[service]}; it must equal the service name you gave in step 2.
         </p>
       )}

@@ -7,47 +7,47 @@ const TEST_PATH = /(^|\/)(tests?|__tests__|spec|src\/test)\/|(^|\/)test_[^/]+\.p
 
 function lineClass(line: string): string {
   if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff --git') || line.startsWith('index ')) {
-    return 'text-[var(--muted)]';
+    return 'text-muted';
   }
-  if (line.startsWith('@@')) return 'text-[var(--cyan)]';
-  if (line.startsWith('+')) return 'text-[var(--acid)] bg-[var(--acid)]/5';
-  if (line.startsWith('-')) return 'text-[var(--danger)] bg-[var(--danger)]/5';
-  return 'text-[var(--muted-strong)]';
+  if (line.startsWith('@@')) return 'text-cyan bg-cyan/5';
+  if (line.startsWith('+')) return 'text-acid bg-acid/[0.07]';
+  if (line.startsWith('-')) return 'text-danger bg-danger/[0.07]';
+  return 'text-muted-strong';
 }
 
-export default function DiffViewer({ diff }: { diff: DiffResponse }) {
+export function DiffViewer({ diff }: { diff: DiffResponse }) {
   const [open, setOpen] = useState<Record<string, boolean>>(
     () => Object.fromEntries(diff.files.map((f) => [f.file_path, true])),
   );
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-[var(--muted)] font-[var(--mono)]">
-        {diff.files.length} file(s) ·{' '}
-        <span className="text-[var(--acid)]">+{diff.total_additions}</span>{' '}
-        <span className="text-[var(--danger)]">−{diff.total_deletions}</span>
+      <p className="text-xs text-muted font-mono">
+        {diff.files.length} file{diff.files.length === 1 ? '' : 's'} changed ·{' '}
+        <span className="text-acid">+{diff.total_additions}</span>{' '}
+        <span className="text-danger">−{diff.total_deletions}</span>
       </p>
       {diff.files.map((file) => {
         const isOpen = open[file.file_path];
-        const Icon = TEST_PATH.test(file.file_path) ? FlaskConical : FileCode2;
+        const isTest = TEST_PATH.test(file.file_path);
+        const Icon = isTest ? FlaskConical : FileCode2;
         return (
-          <div key={file.file_path} className="border border-[var(--line)] rounded-lg overflow-hidden">
+          <div key={file.file_path} className="border border-line rounded-lg overflow-hidden">
             <button
               onClick={() => setOpen((o) => ({ ...o, [file.file_path]: !isOpen }))}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-[var(--surface-raised)] text-left"
+              aria-expanded={isOpen}
+              className="w-full flex items-center gap-2 px-3 h-9 bg-raised hover:bg-hover text-left transition-colors"
             >
-              {isOpen ? <ChevronDown className="w-4 h-4 text-[var(--muted)]" /> : <ChevronRight className="w-4 h-4 text-[var(--muted)]" />}
-              <Icon className="w-4 h-4 text-[var(--muted)]" />
-              <span className="flex-1 text-xs font-[var(--mono)] text-[var(--ink)] truncate">{file.file_path}</span>
-              <span className="text-xs font-[var(--mono)] text-[var(--acid)]">+{file.additions}</span>
-              <span className="text-xs font-[var(--mono)] text-[var(--danger)]">−{file.deletions}</span>
+              {isOpen ? <ChevronDown className="w-4 h-4 text-muted" /> : <ChevronRight className="w-4 h-4 text-muted" />}
+              <Icon className={cn('w-4 h-4', isTest ? 'text-cyan' : 'text-muted')} aria-label={isTest ? 'test file' : 'source file'} />
+              <span className="flex-1 text-xs font-mono text-ink truncate">{file.file_path}</span>
+              <span className="text-xs font-mono text-acid">+{file.additions}</span>
+              <span className="text-xs font-mono text-danger">−{file.deletions}</span>
             </button>
             {isOpen && (
-              <pre className="text-[12px] leading-5 font-[var(--mono)] overflow-x-auto max-h-[420px] bg-[var(--page-deep)]">
+              <pre className="text-[12px] leading-5 font-mono overflow-x-auto max-h-[460px] scroll-thin bg-page-deep py-1">
                 {file.diff.split('\n').map((line, i) => (
-                  <div key={i} className={cn('px-3 whitespace-pre', lineClass(line))}>
-                    {line || ' '}
-                  </div>
+                  <div key={i} className={cn('px-3 whitespace-pre min-w-fit', lineClass(line))}>{line || ' '}</div>
                 ))}
               </pre>
             )}
