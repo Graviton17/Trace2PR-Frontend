@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Activity, AlertTriangle, Bell, Cloud, ExternalLink, GitBranch, RefreshCw, ShieldAlert, Unplug } from 'lucide-react';
+import { Activity, AlertTriangle, Bell, Cloud, ExternalLink, GitBranch, KeyRound, RefreshCw, ShieldAlert, Unplug, X } from 'lucide-react';
 import { integrationsApi } from '../../api';
 import type { Integration, IntegrationCatalogItem } from '../../api';
 import {
-  useIntegrationCatalog, useIntegrations, useRecheckOnboarding, useRemoveIntegration,
+  useIntegrationCatalog, useIntegrations, usePageRestore, useRecheckOnboarding, useRemoveIntegration,
 } from '../../hooks';
 import { WEBHOOK_HELP } from '../../lib/integrations';
 import { timeAgo } from '../../lib/time';
@@ -14,6 +14,7 @@ import { CopyField } from '../common/Controls';
 import { ErrorState, Skeleton } from '../common/StateViews';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
+import { CredentialsDialog } from './CredentialsDialog';
 import { errorMessage, useFeedback } from '../ui/feedback';
 
 const ICONS: Record<string, typeof Activity> = {
@@ -46,6 +47,23 @@ export function IntegrationsPanel() {
       .finally(() => { integrations.refetch(); recheck(); });
   }, [params, setParams, toast, integrations, recheck]);
 
+  // A pending connection means the user left for Composio. They may have
+  // finished there without coming back through the redirect, or pressed Back:
+  // ask Composio which, once per load and whenever Back restores the page.
+  const pendingKey = (integrations.data ?? []).filter((i) => i.status === 'pending').map((i) => i.service).join(',');
+  const recheckPending = useCallback(() => {
+    if (!pendingKey) return;
+    Promise.allSettled(pendingKey.split(',').map((s) => integrationsApi.status(s)))
+      .then(() => { integrations.refetch(); recheck(); });
+  }, [pendingKey, integrations, recheck]);
+  const checkedPending = useRef('');
+  useEffect(() => {
+    if (!pendingKey || checkedPending.current === pendingKey) return;
+    checkedPending.current = pendingKey;
+    recheckPending();
+  }, [pendingKey, recheckPending]);
+  usePageRestore(() => { integrations.refetch(); recheckPending(); });
+
   if (catalog.isLoading || integrations.isLoading) {
     return <div className="grid sm:grid-cols-2 gap-3">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-xl" />)}</div>;
   }
@@ -58,7 +76,8 @@ export function IntegrationsPanel() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        Connections use OAuth through Composio; Trace2PR never sees your credentials. Each monitoring tool gets a private webhook URL.
+        Most tools connect through Composio, with OAuth or an API key entered on Composio's form, so Trace2PR never sees
+        those credentials. CloudWatch keys are checked with AWS and stored encrypted. Each monitoring tool gets a private webhook URL.
       </p>
       <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
         {items.map((item) => (
@@ -76,11 +95,16 @@ function IntegrationCard({ item, integration, onChanged }: {
   const remove = useRemoveIntegration();
   const [connecting, setConnecting] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const usesCredentials = item.auth_method === 'credentials';
+  usePageRestore(() => setConnecting(false));
   const status = integration?.status ?? 'disconnected';
   const connected = status === 'connected';
+  const pending = status === 'pending';
   const Icon = ICONS[item.id] ?? Activity;
 
   const connect = async () => {
+    if (usesCredentials) { setEditing(true); return; }
     setConnecting(true);
     try {
       const result = await integrationsApi.connect(item.id, item.category);
@@ -95,7 +119,8 @@ function IntegrationCard({ item, integration, onChanged }: {
   const verify = async () => {
     setChecking(true);
     try {
-      const r = await integrationsApi.status(item.id);
+      // Credentials are re-checked against the tool; Composio connections by their status.
+      const r = await (usesCredentials ? integrationsApi.verify(item.id) : integrationsApi.status(item.id));
       toast(r.connected ? `${item.name} is connected and verified.` : r.error || `${item.name} is not connected.`, r.connected ? 'success' : 'error');
       onChanged();
     } catch (e) {
@@ -104,6 +129,12 @@ function IntegrationCard({ item, integration, onChanged }: {
       setChecking(false);
     }
   };
+
+  // Abandoned attempt: nothing was authorized, so no confirmation needed.
+  const cancel = () => remove.mutate(item.id, {
+    onSuccess: onChanged,
+    onError: (e) => toast(errorMessage(e), 'error'),
+  });
 
   const disconnect = async () => {
     const ok = await confirm({
@@ -134,6 +165,11 @@ function IntegrationCard({ item, integration, onChanged }: {
             {status !== 'disconnected' && <StatusBadge status={status} />}
           </div>
           <p className="text-xs text-muted mt-0.5">{CATEGORY_LABELS[item.category] ?? item.category} · {item.description}</p>
+          {!connected && item.auth_method !== 'oauth' && (
+            <p className="text-[11px] text-muted mt-1 flex items-center gap-1">
+              <KeyRound className="w-3 h-3" /> {usesCredentials ? 'Connects with access keys' : 'Connects with an API key on Composio’s secure form'}
+            </p>
+          )}
         </div>
       </div>
 
@@ -158,18 +194,36 @@ function IntegrationCard({ item, integration, onChanged }: {
         {connected ? (
           <>
             <Button size="sm" onClick={verify} loading={checking}>{!checking && <RefreshCw className="w-3.5 h-3.5" />} Verify</Button>
+            {usesCredentials && (
+              <Button size="sm" variant="ghost" onClick={() => setEditing(true)}><KeyRound className="w-3.5 h-3.5" /> Update keys</Button>
+            )}
             <Button size="sm" variant="ghost" className="hover:text-danger" onClick={disconnect} loading={remove.isPending}>
               {!remove.isPending && <Unplug className="w-3.5 h-3.5" />} Disconnect
             </Button>
             {integration?.verified_at && <span className="ml-auto text-[11px] text-muted font-mono">verified {timeAgo(integration.verified_at)}</span>}
           </>
         ) : (
-          <Button size="sm" variant="primary" onClick={connect} loading={connecting || status === 'pending'}>
-            {!connecting && status !== 'pending' && <ExternalLink className="w-3.5 h-3.5" />}
-            {status === 'pending' ? 'Waiting for authorization' : status === 'error' ? 'Reconnect' : 'Connect'}
-          </Button>
+          <>
+            <Button size="sm" variant="primary" onClick={connect} loading={connecting}>
+              {!connecting && (usesCredentials ? <KeyRound className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />)}
+              {pending ? 'Finish connecting' : status === 'error' ? 'Reconnect' : 'Connect'}
+            </Button>
+            {pending && (
+              <>
+                <Button size="sm" variant="ghost" onClick={cancel} loading={remove.isPending}>
+                  {!remove.isPending && <X className="w-3.5 h-3.5" />} Cancel
+                </Button>
+                <span className="basis-full text-[11px] text-muted">Authorization wasn't completed. Finish connecting opens a fresh link.</span>
+              </>
+            )}
+          </>
         )}
       </div>
+
+      {usesCredentials && (
+        <CredentialsDialog item={item} open={editing} reconnect={connected} onClose={() => setEditing(false)}
+          onSaved={() => { setEditing(false); toast(`${item.name} connected.`); onChanged(); }} />
+      )}
     </Card>
   );
 }

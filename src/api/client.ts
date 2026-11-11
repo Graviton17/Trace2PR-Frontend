@@ -2,6 +2,15 @@ import { supabase } from '../lib/supabase';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
 
+function usesNgrokBrowserWarning(apiBase: string): boolean {
+  try {
+    const hostname = new URL(apiBase).hostname;
+    return hostname === 'ngrok-free.dev' || hostname.endsWith('.ngrok-free.dev');
+  } catch {
+    return false;
+  }
+}
+
 /** Thrown for any non-2xx response. Carries the parsed error body (if any)
  * so callers can show a real message instead of a generic one. */
 export class ApiError extends Error {
@@ -42,6 +51,12 @@ async function buildHeaders(extra?: HeadersInit): Promise<Headers> {
   const headers = new Headers(extra);
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  // ngrok's free-tier browser warning is served by the tunnel before the API.
+  // Skipping it lets the request reach FastAPI, which then supplies CORS headers.
+  if (usesNgrokBrowserWarning(API_BASE)) {
+    headers.set('ngrok-skip-browser-warning', 'true');
   }
 
   const {

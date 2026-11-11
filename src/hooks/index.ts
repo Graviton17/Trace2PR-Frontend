@@ -12,3 +12,4 @@ export * from './useOnboarding';
 export * from './useInbox';
 export * from './useMetrics';
 export * from './useSdkKeys';
+export * from './usePageRestore';

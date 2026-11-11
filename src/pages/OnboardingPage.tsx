@@ -8,11 +8,12 @@ import {
 import { integrationsApi, repoMappingsApi } from '../api';
 import type { GitHubRepo } from '../api';
 import { useAuth } from '../context/AuthContext';
-import { onboardingKeys, useGitHubRepos, useOnboarding } from '../hooks';
+import { onboardingKeys, useGitHubRepos, useIntegrationCatalog, useOnboarding, usePageRestore } from '../hooks';
 import { SERVICE_KEY_HELP, WEBHOOK_HELP } from '../lib/integrations';
 import { cn } from '../lib/utils';
 import { CopyField } from '../components/common/Controls';
 import { buttonVariants } from '../components/ui/button';
+import { CredentialsDialog } from '../components/settings/CredentialsDialog';
 
 type StepId = 'github' | 'repos' | 'monitoring' | 'done';
 
@@ -61,8 +62,16 @@ export default function OnboardingPage() {
     connectReturn?.failed ? { type: 'error', text: `Couldn't connect ${connectReturn.service}: ${connectReturn.failed}` } : null,
   );
 
+  const catalog = useIntegrationCatalog();
+  // Tools connected with a credentials form instead of a Connect Link (CloudWatch).
+  const [credentialsFor, setCredentialsFor] = useState<string | null>(null);
+  const credentialsItem = catalog.data?.find((i) => i.id === credentialsFor);
+
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['integrations'] }).then(() =>
     queryClient.invalidateQueries({ queryKey: onboardingKeys.status }));
+
+  // Back from Composio's page without finishing: clear the spinner, recheck setup.
+  usePageRestore(() => { setConnecting(null); refresh(); });
 
   // Back from Composio: confirm the connection is active, then move on.
   useEffect(() => {
@@ -92,6 +101,11 @@ export default function OnboardingPage() {
   };
 
   const connect = async (service: string, category: string) => {
+    if (catalog.data?.find((i) => i.id === service)?.auth_method === 'credentials') {
+      setMessage(null);
+      setCredentialsFor(service);
+      return;
+    }
     setConnecting(service);
     setMessage(null);
     try {
@@ -218,6 +232,14 @@ export default function OnboardingPage() {
           </section>
         </div>
       </main>
+      {credentialsItem && (
+        <CredentialsDialog item={credentialsItem} open onClose={() => setCredentialsFor(null)}
+          onSaved={() => {
+            setCredentialsFor(null);
+            setMessage({ type: 'success', text: `${credentialsItem.name} connected.` });
+            refresh();
+          }} />
+      )}
     </div>
   );
 }

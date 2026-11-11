@@ -79,6 +79,7 @@ function IncidentFacts({ incident }: { incident: IncidentDetail }) {
     facts.push({ label: 'Last seen', value: timeAgo(group.last_seen) });
   }
   if (incident.source && incident.source !== 'manual') {
+    facts.push({ label: 'Service', value: incident.service || 'unknown', warn: !incident.service });
     facts.push({ label: 'Repository', value: incident.repository || 'not mapped', warn: !incident.repository });
     facts.push({ label: 'Commit', value: incident.commit_sha ? incident.commit_sha.slice(0, 12) : 'unknown', warn: !incident.commit_sha });
     facts.push({ label: 'Source', value: incident.source });
@@ -91,8 +92,16 @@ function IncidentFacts({ incident }: { incident: IncidentDetail }) {
       </dl>
       {incident.source && incident.source !== 'manual' && !incident.repository && (
         <p className="text-xs text-muted mt-3">
-          This service isn't mapped to a repository, so it can't be fixed yet.{' '}
-          <Link to="/dashboard/settings/repositories" className="text-acid hover:underline">Map it</Link>
+          {incident.service
+            ? <>Service <span className="font-mono text-ink">{incident.service}</span> isn't mapped to a repository, so it can't be fixed yet.</>
+            : <>This service isn't mapped to a repository, so it can't be fixed yet.</>
+          }{' '}
+          <Link
+            to={`/dashboard/settings/repositories`}
+            className="text-acid hover:underline"
+          >
+            Map it
+          </Link>
         </p>
       )}
     </Card>

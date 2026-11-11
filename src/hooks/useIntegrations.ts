@@ -27,6 +27,28 @@ export function useGitHubRepos(enabled: boolean) {
   });
 }
 
+/** Branches of `repo` ('owner/name'); disabled while `repo` is null. */
+export function useGitHubBranches(repo: string | null) {
+  return useQuery({
+    queryKey: ['integrations', 'github', 'branches', repo],
+    queryFn: () => integrationsApi.githubBranches(repo!),
+    enabled: repo !== null,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** Projects/services a connected monitoring tool reports (Sentry, Datadog, CloudWatch). */
+export function useMonitoredServices(service: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['integrations', service, 'services'],
+    queryFn: () => integrationsApi.monitoredServices(service),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+
 export function useRemoveIntegration() {
   const queryClient = useQueryClient();
   return useMutation({

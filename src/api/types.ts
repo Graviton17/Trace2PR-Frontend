@@ -381,11 +381,36 @@ export interface Integration {
 
 export interface GitHubRepo {
   full_name: string;
+  owner?: string;
+  owner_avatar_url?: string | null;
+  description?: string | null;
+  language?: string | null;
   default_branch: string;
   private: boolean;
   pushed_at?: string | null;
+  html_url?: string | null;
 }
 
+export interface GitHubBranch {
+  name: string;
+  protected: boolean;
+}
+
+/** What a monitoring tool reports errors under (Sentry project, Datadog service, CloudWatch alarm). */
+export interface MonitoredService {
+  /** The service name errors arrive with: what a repo mapping matches on. */
+  key: string;
+  name: string;
+  detail: string | null;
+  group: string | null;
+}
+
+export interface MonitoredServices {
+  service: string;
+  items: MonitoredService[];
+  accounts: string[];
+  create_url: string | null;
+}
 export interface IntegrationCatalogItem {
   id: string;
   name: string;
@@ -394,6 +419,18 @@ export interface IntegrationCatalogItem {
   logo_url?: string | null;
   oauth_supported: boolean;
   required_fields: string[];
+  /** oauth: Composio OAuth. api_key: Composio's hosted key form. credentials: a form in Trace2PR. */
+  auth_method: 'oauth' | 'api_key' | 'credentials';
+  credential_fields: CredentialField[];
+}
+
+export interface CredentialField {
+  name: string;
+  label: string;
+  secret: boolean;
+  required: boolean;
+  placeholder?: string | null;
+  help?: string | null;
 }
 
 export interface ConnectResponse {
@@ -445,10 +482,13 @@ export interface HealthResponse {
 // =============================================
 
 export type RepoLanguage = 'python' | 'javascript' | 'typescript' | 'java';
+/** The tool a mapping's service name comes from; null matches any tool. */
+export type MappingSource = 'sentry' | 'datadog' | 'cloudwatch' | 'sdk';
 
 export interface RepoMappingInput {
   service: string;
   repository: string;
+  source?: MappingSource | null;
   default_branch: string;
   language: RepoLanguage | null;
   install_cmd: string | null;
